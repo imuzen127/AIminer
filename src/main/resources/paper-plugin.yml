@@ -1,0 +1,4 @@
+name: AIminer
+version: '1.0-SNAPSHOT'
+main: plugin.midorin.info.aIminer.AIminer
+api-version: '1.21'

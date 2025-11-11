@@ -1,0 +1,83 @@
+{
+  "rules": {
+    "description": "このファイルはボットの脳です。visionから情報を読み取り、必要な情報をmemoryに追加し、tasksに実行したい行動を記述してください。",
+    "vision_rules": "visionは常に更新されます。重要な情報はmemoryに保存してください。",
+    "memory_rules": "memoryには重要な情報のみを記録してください。不要になった情報は削除可能です。",
+    "task_rules": "tasksには次に実行したい行動を記述してください。タスクは順番に実行されます。",
+    "available_tasks": [
+      {
+        "type": "MINE_WOOD",
+        "description": "木を掘る",
+        "parameters": ["x", "y", "z"],
+        "command": "/function imuzen127x74:xoak {x:X,y:Y,z:Z}"
+      },
+      {
+        "type": "MINE_STONE",
+        "description": "石を掘る",
+        "parameters": ["x", "y", "z"],
+        "command": "/function imuzen127x74:xstone {x:X,y:Y,z:Z}"
+      },
+      {
+        "type": "MOVE_TO",
+        "description": "特定の場所へ移動",
+        "parameters": ["x", "y", "z"],
+        "command": "/function imuzen127x74:xaim {x:X,y:Y,z:Z}"
+      },
+      {
+        "type": "GET_INVENTORY",
+        "description": "インベントリ情報を取得",
+        "parameters": [],
+        "command": "/data get entity @e[tag=test1,limit=1] data.Inventory"
+      },
+      {
+        "type": "GET_POSITION",
+        "description": "自分の座標を取得",
+        "parameters": [],
+        "command": "/data get entity @e[tag=test1,limit=1] Pos"
+      },
+      {
+        "type": "GET_ENTITY_POSITION",
+        "description": "他のエンティティの座標を取得",
+        "parameters": ["entity_selector"],
+        "command": "/data get entity <selector> Pos"
+      },
+      {
+        "type": "CHAT",
+        "description": "チャットで発言",
+        "parameters": ["message"],
+        "command": "/say <message>"
+      },
+      {
+        "type": "READ_MEMORY",
+        "description": "記憶情報を読み込む",
+        "parameters": ["key"],
+        "command": "internal"
+      }
+    ]
+  },
+  "vision": {
+    "chat": [],
+    "blocks": {
+      "view_distance": 10,
+      "view_direction": {
+        "yaw": 0.0,
+        "pitch": 0.0
+      },
+      "visible_blocks": []
+    }
+  },
+  "memory": {
+    "important_locations": [],
+    "player_requests": [],
+    "inventory_state": {
+      "last_checked": null,
+      "items": []
+    },
+    "current_position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    }
+  },
+  "tasks": []
+}

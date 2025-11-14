@@ -49,11 +49,8 @@ jobs:
           # Example: huggingface-cli download imuzen127/gpt-oss-20b-GGUF gpt-oss-20b-MXFP4.gguf --local-dir ./models
 
           echo "Downloading model from Hugging Face..."
-          # TODO: Uncomment and configure the line below after uploading model to Hugging Face
-          # huggingface-cli download YOUR_USERNAME/YOUR_MODEL_NAME gpt-oss-20b-MXFP4.gguf --local-dir ./models --token $HF_TOKEN
-
-          # For now, create a placeholder
-          echo "NOTE: Model download is not yet configured. Please update this workflow after uploading to Hugging Face."
+          huggingface-cli download imuzen127/gpt-oss-20b-GGUF gpt-oss-20b-MXFP4.gguf --local-dir ./models --token $HF_TOKEN
+          echo "Model downloaded successfully!"
 
       - name: Process brain with AI
         run: |
@@ -116,11 +113,9 @@ EOF
           fi
 
           # Run the brain processor
-          # NOTE: Update model path after Hugging Face setup
-          # python brain_processor.py ../models/gpt-oss-20b-MXFP4.gguf "${BRAIN_PATH}"
-
-          echo "Brain processing would run here. Skipping for now until model is uploaded."
-          echo "Brain file location: ${BRAIN_PATH}"
+          echo "Running brain processor..."
+          python brain_processor.py ../models/gpt-oss-20b-MXFP4.gguf "${BRAIN_PATH}"
+          echo "Brain processing completed!"
 
       - name: Commit updated brain
         run: |

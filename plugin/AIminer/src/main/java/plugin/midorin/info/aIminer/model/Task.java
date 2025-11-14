@@ -9,10 +9,12 @@ public class Task {
     private Map<String, Object> parameters;
     private String reason;
     private TaskStatus status;
+    private long createdAt;
 
     public Task() {
         this.parameters = new HashMap<>();
         this.status = TaskStatus.PENDING;
+        this.createdAt = System.currentTimeMillis();
     }
 
     public Task(int id, TaskType type, Map<String, Object> parameters, String reason) {
@@ -21,6 +23,7 @@ public class Task {
         this.parameters = parameters != null ? parameters : new HashMap<>();
         this.reason = reason;
         this.status = TaskStatus.PENDING;
+        this.createdAt = System.currentTimeMillis();
     }
 
     // Getters and Setters
@@ -62,5 +65,13 @@ public class Task {
 
     public void setStatus(TaskStatus status) {
         this.status = status;
+    }
+
+    public long getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(long createdAt) {
+        this.createdAt = createdAt;
     }
 }

@@ -8,5 +8,6 @@ public enum TaskType {
     GET_POSITION,
     GET_ENTITY_POSITION,
     CHAT,
-    READ_MEMORY
+    READ_MEMORY,
+    WAIT
 }

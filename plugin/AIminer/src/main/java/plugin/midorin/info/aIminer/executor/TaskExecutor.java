@@ -1,7 +1,9 @@
 package plugin.midorin.info.aIminer.executor;
 
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
+import plugin.midorin.info.aIminer.bot.BotManager;
 import plugin.midorin.info.aIminer.brain.BrainFileManager;
 import plugin.midorin.info.aIminer.model.Task;
 import plugin.midorin.info.aIminer.model.TaskStatus;
@@ -15,12 +17,14 @@ import java.util.logging.Logger;
 public class TaskExecutor {
     private final JavaPlugin plugin;
     private final BrainFileManager brainFileManager;
+    private final BotManager botManager;
     private final Logger logger;
     private int taskId = -1;
 
-    public TaskExecutor(JavaPlugin plugin, BrainFileManager brainFileManager) {
+    public TaskExecutor(JavaPlugin plugin, BrainFileManager brainFileManager, BotManager botManager) {
         this.plugin = plugin;
         this.brainFileManager = brainFileManager;
+        this.botManager = botManager;
         this.logger = plugin.getLogger();
     }
 
@@ -111,11 +115,16 @@ public class TaskExecutor {
         int y = (int) task.getParameters().get("y");
         int z = (int) task.getParameters().get("z");
 
-        // ボットの位置でコマンドを実行
-        String command = String.format("execute as @e[tag=test1,limit=1] at @s run function imuzen127x74:xoak {x:%d,y:%d,z:%d}", x, y, z);
+        CommandSender executor = getTaskExecutor();
+        if (executor == null) {
+            logger.warning("No valid command executor available");
+            return false;
+        }
 
-        logger.info("Executing: " + command);
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        String command = String.format("function imuzen127x74:xoak {x:%d,y:%d,z:%d}", x, y, z);
+
+        logger.info("Executing as " + executor.getName() + ": " + command);
+        return Bukkit.dispatchCommand(executor, command);
     }
 
     /**
@@ -126,11 +135,16 @@ public class TaskExecutor {
         int y = (int) task.getParameters().get("y");
         int z = (int) task.getParameters().get("z");
 
-        // ボットの位置でコマンドを実行
-        String command = String.format("execute as @e[tag=test1,limit=1] at @s run function imuzen127x74:xstone {x:%d,y:%d,z:%d}", x, y, z);
+        CommandSender executor = getTaskExecutor();
+        if (executor == null) {
+            logger.warning("No valid command executor available");
+            return false;
+        }
 
-        logger.info("Executing: " + command);
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        String command = String.format("function imuzen127x74:xstone {x:%d,y:%d,z:%d}", x, y, z);
+
+        logger.info("Executing as " + executor.getName() + ": " + command);
+        return Bukkit.dispatchCommand(executor, command);
     }
 
     /**
@@ -141,11 +155,29 @@ public class TaskExecutor {
         int y = (int) task.getParameters().get("y");
         int z = (int) task.getParameters().get("z");
 
-        // ボットの位置でコマンドを実行
-        String command = String.format("execute as @e[tag=test1,limit=1] at @s run function imuzen127x74:xaim {x:%d,y:%d,z:%d}", x, y, z);
+        CommandSender executor = getTaskExecutor();
+        if (executor == null) {
+            logger.warning("No valid command executor available");
+            return false;
+        }
 
-        logger.info("Executing: " + command);
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        String command = String.format("function imuzen127x74:xaim {x:%d,y:%d,z:%d}", x, y, z);
+
+        logger.info("Executing as " + executor.getName() + ": " + command);
+        return Bukkit.dispatchCommand(executor, command);
+    }
+
+    /**
+     * タスク実行者を取得（ボットオーナーまたはオンラインプレイヤー）
+     */
+    private CommandSender getTaskExecutor() {
+        CommandSender owner = botManager.getBotOwner();
+        if (owner != null) {
+            return owner;
+        }
+
+        // フォールバック：オンラインの最初のプレイヤー
+        return Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
     }
 
     /**

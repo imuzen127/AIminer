@@ -27,7 +27,7 @@ public final class AIminer extends JavaPlugin {
         botManager = new BotManager(this);
 
         // タスク実行システムの初期化と起動
-        taskExecutor = new TaskExecutor(this, brainFileManager);
+        taskExecutor = new TaskExecutor(this, brainFileManager, botManager);
         taskExecutor.startTaskLoop();
         getLogger().info("Task executor started.");
 

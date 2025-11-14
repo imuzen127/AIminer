@@ -71,10 +71,11 @@ public class BotCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        boolean success = botManager.summonBot();
+        // コマンド実行者の座標でボットを召喚
+        boolean success = botManager.summonBot(sender);
 
         if (success) {
-            sender.sendMessage("§aBot started successfully!");
+            sender.sendMessage("§aBot started successfully at your location!");
             sender.sendMessage("§7Bot will process tasks automatically.");
         } else {
             sender.sendMessage("§cFailed to start bot.");

@@ -1,4 +1,4 @@
 name: AIminer
-version: '1.2-SNAPSHOT'
+version: '1.3-SNAPSHOT'
 main: plugin.midorin.info.aIminer.AIminer
 api-version: '1.21'

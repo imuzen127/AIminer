@@ -1,5 +1,6 @@
 package plugin.midorin.info.aIminer;
 
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import plugin.midorin.info.aIminer.bot.BotManager;
 import plugin.midorin.info.aIminer.brain.BrainFileManager;
@@ -36,9 +37,18 @@ public final class AIminer extends JavaPlugin {
             this
         );
 
-        // コマンドの登録
-        getCommand("bot").setExecutor(new BotCommand(botManager, brainFileManager));
-        getLogger().info("Bot command registered.");
+        // コマンドの登録（Paper 1.21対応）
+        // plugin.ymlで定義したコマンドは自動的に登録されるため、
+        // 起動後にExecutorを設定
+        Bukkit.getScheduler().runTask(this, () -> {
+            org.bukkit.command.PluginCommand botCommand = getCommand("bot");
+            if (botCommand != null) {
+                botCommand.setExecutor(new BotCommand(botManager, brainFileManager));
+                getLogger().info("Bot command registered.");
+            } else {
+                getLogger().warning("Failed to register bot command!");
+            }
+        });
 
         getLogger().info("AIminer plugin has been enabled!");
         getLogger().info("Use /bot start to begin!");

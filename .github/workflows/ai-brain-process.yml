@@ -1,0 +1,140 @@
+name: AI Brain Processing
+
+on:
+  # Trigger when brain.json is pushed
+  push:
+    paths:
+      - 'brain.json'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      brain_file:
+        description: 'Path to brain.json file (relative to repo root)'
+        required: false
+        default: 'brain.json'
+
+jobs:
+  process-brain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r ai-brain/requirements.txt
+
+      - name: Download model from Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Install Hugging Face CLI
+          pip install huggingface-hub[cli]
+
+          # Create models directory
+          mkdir -p models
+
+          # Download the model
+          # NOTE: Replace 'YOUR_USERNAME/YOUR_MODEL_NAME' with your actual Hugging Face model repository
+          # Example: huggingface-cli download imuzen127/gpt-oss-20b-GGUF gpt-oss-20b-MXFP4.gguf --local-dir ./models
+
+          echo "Downloading model from Hugging Face..."
+          # TODO: Uncomment and configure the line below after uploading model to Hugging Face
+          # huggingface-cli download YOUR_USERNAME/YOUR_MODEL_NAME gpt-oss-20b-MXFP4.gguf --local-dir ./models --token $HF_TOKEN
+
+          # For now, create a placeholder
+          echo "NOTE: Model download is not yet configured. Please update this workflow after uploading to Hugging Face."
+
+      - name: Process brain with AI
+        run: |
+          cd ai-brain
+
+          # Determine brain file path
+          BRAIN_FILE="${{ github.event.inputs.brain_file || 'brain.json' }}"
+          BRAIN_PATH="../${BRAIN_FILE}"
+
+          # Check if brain file exists
+          if [ ! -f "${BRAIN_PATH}" ]; then
+            echo "Brain file not found: ${BRAIN_PATH}"
+            echo "Creating a sample brain.json for testing..."
+
+            # Create sample brain.json
+            cat > "${BRAIN_PATH}" << 'EOF'
+{
+  "rules": {
+    "description": "You are a helpful Minecraft bot. Follow player instructions and help with mining and building tasks."
+  },
+  "vision": {
+    "chat": [
+      {
+        "player": "TestPlayer",
+        "message": "Hey bot, can you mine some wood?",
+        "timestamp": 1699999999000
+      }
+    ],
+    "blockVision": {
+      "botPosition": {
+        "x": 0,
+        "y": 64,
+        "z": 0,
+        "viewDirection": {
+          "yaw": 0.0,
+          "pitch": 0.0
+        }
+      },
+      "visibleBlocks": [
+        {
+          "blockType": "OAK_LOG",
+          "position": {"x": 5, "y": 64, "z": 3},
+          "distance": 5.8
+        },
+        {
+          "blockType": "STONE",
+          "position": {"x": -2, "y": 63, "z": 1},
+          "distance": 2.4
+        }
+      ]
+    }
+  },
+  "memory": {
+    "last_task": "idle",
+    "wood_collected": 0
+  },
+  "tasks": []
+}
+EOF
+          fi
+
+          # Run the brain processor
+          # NOTE: Update model path after Hugging Face setup
+          # python brain_processor.py ../models/gpt-oss-20b-MXFP4.gguf "${BRAIN_PATH}"
+
+          echo "Brain processing would run here. Skipping for now until model is uploaded."
+          echo "Brain file location: ${BRAIN_PATH}"
+
+      - name: Commit updated brain
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          # Add brain.json if it was modified
+          git add brain.json || true
+
+          # Commit if there are changes
+          git diff --staged --quiet || git commit -m "Update brain.json with AI-generated tasks"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.8.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}

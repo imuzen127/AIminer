@@ -111,7 +111,8 @@ public class TaskExecutor {
         int y = (int) task.getParameters().get("y");
         int z = (int) task.getParameters().get("z");
 
-        String command = String.format("function imuzen127x74:xoak {x:%d,y:%d,z:%d}", x, y, z);
+        // ボットの位置でコマンドを実行
+        String command = String.format("execute as @e[tag=test1,limit=1] at @s run function imuzen127x74:xoak {x:%d,y:%d,z:%d}", x, y, z);
 
         logger.info("Executing: " + command);
         return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
@@ -125,7 +126,8 @@ public class TaskExecutor {
         int y = (int) task.getParameters().get("y");
         int z = (int) task.getParameters().get("z");
 
-        String command = String.format("function imuzen127x74:xstone {x:%d,y:%d,z:%d}", x, y, z);
+        // ボットの位置でコマンドを実行
+        String command = String.format("execute as @e[tag=test1,limit=1] at @s run function imuzen127x74:xstone {x:%d,y:%d,z:%d}", x, y, z);
 
         logger.info("Executing: " + command);
         return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
@@ -139,7 +141,8 @@ public class TaskExecutor {
         int y = (int) task.getParameters().get("y");
         int z = (int) task.getParameters().get("z");
 
-        String command = String.format("function imuzen127x74:xaim {x:%d,y:%d,z:%d}", x, y, z);
+        // ボットの位置でコマンドを実行
+        String command = String.format("execute as @e[tag=test1,limit=1] at @s run function imuzen127x74:xaim {x:%d,y:%d,z:%d}", x, y, z);
 
         logger.info("Executing: " + command);
         return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);

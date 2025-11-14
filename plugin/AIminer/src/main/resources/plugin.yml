@@ -1,0 +1,10 @@
+name: AIminer
+version: '${version}'
+main: plugin.midorin.info.aIminer.AIminer
+api-version: '1.21'
+commands:
+  bot:
+    description: Control the AI bot
+    usage: /<command> [start|status|reset|test]
+    permission: aiminer.bot
+    permission-message: You don't have permission to use this command

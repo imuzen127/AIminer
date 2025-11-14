@@ -1,9 +1,4 @@
 name: AIminer
-version: '1.1-SNAPSHOT'
+version: '1.2-SNAPSHOT'
 main: plugin.midorin.info.aIminer.AIminer
 api-version: '1.21'
-commands:
-  bot:
-    description: Control the AI bot
-    usage: /<command> [start|status|reset|test]
-    permission: aiminer.bot

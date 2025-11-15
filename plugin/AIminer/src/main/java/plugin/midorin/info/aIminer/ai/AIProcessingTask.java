@@ -1,0 +1,137 @@
+package plugin.midorin.info.aIminer.ai;
+
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
+import plugin.midorin.info.aIminer.bot.BotManager;
+import plugin.midorin.info.aIminer.brain.BrainFileManager;
+import plugin.midorin.info.aIminer.model.BrainData;
+
+/**
+ * Periodic task to process brain data through AI server
+ */
+public class AIProcessingTask extends BukkitRunnable {
+    private final JavaPlugin plugin;
+    private final BrainFileManager brainFileManager;
+    private final BotManager botManager;
+    private final AIServerClient aiClient;
+
+    // Processing interval in seconds
+    private static final int PROCESSING_INTERVAL_SECONDS = 10;
+
+    // Flag to prevent concurrent processing
+    private boolean isProcessing = false;
+
+    public AIProcessingTask(
+            JavaPlugin plugin,
+            BrainFileManager brainFileManager,
+            BotManager botManager,
+            String aiServerUrl
+    ) {
+        this.plugin = plugin;
+        this.brainFileManager = brainFileManager;
+        this.botManager = botManager;
+        this.aiClient = new AIServerClient(aiServerUrl, plugin.getLogger());
+    }
+
+    @Override
+    public void run() {
+        // Skip if bot is not summoned
+        if (!botManager.isBotSummoned()) {
+            plugin.getLogger().fine("AI processing skipped: Bot not summoned");
+            return;
+        }
+
+        // Skip if already processing
+        if (isProcessing) {
+            plugin.getLogger().warning("AI processing skipped: Previous request still in progress");
+            return;
+        }
+
+        // Run AI processing asynchronously to avoid blocking server
+        isProcessing = true;
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                processWithAI();
+            } finally {
+                isProcessing = false;
+            }
+        });
+    }
+
+    /**
+     * Process brain data through AI server
+     */
+    private void processWithAI() {
+        plugin.getLogger().info("Starting AI brain processing...");
+
+        // Load current brain state
+        BrainData currentBrain = brainFileManager.getBrainData();
+
+        // Send to AI server
+        BrainData updatedBrain = aiClient.processBrain(currentBrain);
+
+        if (updatedBrain == null) {
+            plugin.getLogger().warning("AI processing failed - brain state not updated");
+            return;
+        }
+
+        // Update brain file manager with new data
+        brainFileManager.setBrainData(updatedBrain);
+        brainFileManager.saveBrainFile();
+
+        plugin.getLogger().info("AI processing completed and brain state updated");
+    }
+
+    /**
+     * Start the AI processing loop
+     */
+    public void startProcessingLoop() {
+        // Check server health before starting
+        plugin.getLogger().info("Checking AI server health...");
+        if (aiClient.checkHealth()) {
+            plugin.getLogger().info("AI server is ready!");
+        } else {
+            plugin.getLogger().warning(
+                    "AI server health check failed. Processing will continue, " +
+                    "but requests may fail until server is available."
+            );
+        }
+
+        // Start periodic task (every N seconds)
+        long intervalTicks = PROCESSING_INTERVAL_SECONDS * 20L;
+        this.runTaskTimer(plugin, 100L, intervalTicks); // Start after 5 seconds, then every N seconds
+
+        plugin.getLogger().info(String.format(
+                "AI processing task started (interval: %d seconds)",
+                PROCESSING_INTERVAL_SECONDS
+        ));
+    }
+
+    /**
+     * Stop the AI processing loop
+     */
+    public void stopProcessingLoop() {
+        this.cancel();
+        plugin.getLogger().info("AI processing task stopped");
+    }
+
+    /**
+     * Trigger an immediate AI processing (can be called by command)
+     */
+    public void triggerImmediateProcessing() {
+        if (isProcessing) {
+            plugin.getLogger().info("AI processing already in progress");
+            return;
+        }
+
+        plugin.getLogger().info("Triggering immediate AI processing...");
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            isProcessing = true;
+            try {
+                processWithAI();
+            } finally {
+                isProcessing = false;
+            }
+        });
+    }
+}

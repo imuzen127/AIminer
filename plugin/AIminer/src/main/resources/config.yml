@@ -1,0 +1,24 @@
+# AIminer Plugin Configuration
+
+# AI Server Settings
+ai-server:
+  # URL of the AI Brain API Server
+  # Default: http://localhost:8080 (same machine as Minecraft server)
+  url: "http://localhost:8080"
+  
+  # Enable/disable AI processing
+  enabled: true
+  
+  # Processing interval in seconds
+  interval: 10
+
+# Vision System Settings
+vision:
+  # Block scanning radius (blocks)
+  scan-radius: 10
+  
+  # Vision update interval in seconds
+  update-interval: 5
+
+# Debug mode (more verbose logging)
+debug: false

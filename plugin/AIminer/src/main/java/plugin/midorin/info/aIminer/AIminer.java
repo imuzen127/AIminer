@@ -2,22 +2,29 @@ package plugin.midorin.info.aIminer;
 
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+import plugin.midorin.info.aIminer.ai.AIProcessingTask;
 import plugin.midorin.info.aIminer.bot.BotManager;
 import plugin.midorin.info.aIminer.brain.BrainFileManager;
 import plugin.midorin.info.aIminer.command.BotCommand;
 import plugin.midorin.info.aIminer.executor.TaskExecutor;
 import plugin.midorin.info.aIminer.listener.ChatListener;
+import plugin.midorin.info.aIminer.vision.VisionUpdateTask;
 
 public final class AIminer extends JavaPlugin {
 
     private BrainFileManager brainFileManager;
     private BotManager botManager;
     private TaskExecutor taskExecutor;
+    private VisionUpdateTask visionUpdateTask;
+    private AIProcessingTask aiProcessingTask;
 
     @Override
     public void onEnable() {
         // プラグイン起動ログ
         getLogger().info("AIminer plugin is starting...");
+
+        // 設定ファイルの保存（初回起動時）
+        saveDefaultConfig();
 
         // 脳ファイルマネージャーの初期化
         brainFileManager = new BrainFileManager(getDataFolder());
@@ -30,6 +37,22 @@ public final class AIminer extends JavaPlugin {
         taskExecutor = new TaskExecutor(this, brainFileManager, botManager);
         taskExecutor.startTaskLoop();
         getLogger().info("Task executor started.");
+
+        // 視覚システムの初期化と起動
+        visionUpdateTask = new VisionUpdateTask(this, brainFileManager, botManager);
+        visionUpdateTask.startVisionLoop();
+        getLogger().info("Vision update system started.");
+
+        // AI処理システムの初期化と起動
+        boolean aiEnabled = getConfig().getBoolean("ai-server.enabled", true);
+        if (aiEnabled) {
+            String aiServerUrl = getConfig().getString("ai-server.url", "http://localhost:8080");
+            aiProcessingTask = new AIProcessingTask(this, brainFileManager, botManager, aiServerUrl);
+            aiProcessingTask.startProcessingLoop();
+            getLogger().info("AI processing system started (server: " + aiServerUrl + ")");
+        } else {
+            getLogger().info("AI processing system is disabled in config");
+        }
 
         // イベントリスナーの登録
         getServer().getPluginManager().registerEvents(
@@ -56,6 +79,16 @@ public final class AIminer extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // AI処理タスクを停止
+        if (aiProcessingTask != null) {
+            aiProcessingTask.stopProcessingLoop();
+        }
+
+        // 視覚更新タスクを停止
+        if (visionUpdateTask != null) {
+            visionUpdateTask.stopVisionLoop();
+        }
+
         // 脳ファイルを保存
         if (brainFileManager != null) {
             brainFileManager.saveBrainFile();

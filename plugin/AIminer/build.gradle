@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'plugin.midorin.info'
-version = '1.6-SNAPSHOT'
+version = '1.7-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -54,4 +54,11 @@ processResources {
     filesMatching('paper-plugin.yml') {
         expand props
     }
+}
+
+jar {
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

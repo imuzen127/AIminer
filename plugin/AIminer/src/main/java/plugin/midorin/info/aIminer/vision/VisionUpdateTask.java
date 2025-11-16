@@ -10,6 +10,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import plugin.midorin.info.aIminer.bot.BotManager;
 import plugin.midorin.info.aIminer.brain.BrainFileManager;
 import plugin.midorin.info.aIminer.model.BlockVisionData;
+import plugin.midorin.info.aIminer.model.Position;
 
 /**
  * 定期的にボットの視覚情報を更新するタスク
@@ -75,6 +76,14 @@ public class VisionUpdateTask extends BukkitRunnable {
 
         // Brain Fileに保存
         brainFileManager.updateBlockVision(visionData);
+
+        // ボット位置をMemoryに保存
+        Position botPosition = new Position(
+            (int) scanLocation.getX(),
+            (int) scanLocation.getY(),
+            (int) scanLocation.getZ()
+        );
+        brainFileManager.updateMemory("current_position", botPosition);
 
         plugin.getLogger().fine(String.format(
             "Vision updated: %d blocks at location (%.1f, %.1f, %.1f)",

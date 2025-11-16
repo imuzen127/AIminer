@@ -111,9 +111,9 @@ public class TaskExecutor {
      * 木を掘るタスク
      */
     private boolean executeMineWood(Task task) {
-        int x = (int) task.getParameters().get("x");
-        int y = (int) task.getParameters().get("y");
-        int z = (int) task.getParameters().get("z");
+        int x = getIntParameter(task.getParameters(), "x");
+        int y = getIntParameter(task.getParameters(), "y");
+        int z = getIntParameter(task.getParameters(), "z");
 
         CommandSender executor = getTaskExecutor();
         if (executor == null) {
@@ -131,9 +131,9 @@ public class TaskExecutor {
      * 石を掘るタスク
      */
     private boolean executeMineStone(Task task) {
-        int x = (int) task.getParameters().get("x");
-        int y = (int) task.getParameters().get("y");
-        int z = (int) task.getParameters().get("z");
+        int x = getIntParameter(task.getParameters(), "x");
+        int y = getIntParameter(task.getParameters(), "y");
+        int z = getIntParameter(task.getParameters(), "z");
 
         CommandSender executor = getTaskExecutor();
         if (executor == null) {
@@ -151,9 +151,9 @@ public class TaskExecutor {
      * 移動タスク
      */
     private boolean executeMoveTo(Task task) {
-        int x = (int) task.getParameters().get("x");
-        int y = (int) task.getParameters().get("y");
-        int z = (int) task.getParameters().get("z");
+        int x = getIntParameter(task.getParameters(), "x");
+        int y = getIntParameter(task.getParameters(), "y");
+        int z = getIntParameter(task.getParameters(), "z");
 
         CommandSender executor = getTaskExecutor();
         if (executor == null) {
@@ -178,6 +178,34 @@ public class TaskExecutor {
 
         // フォールバック：オンラインの最初のプレイヤー
         return Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
+    }
+
+    /**
+     * タスクパラメータから整数値を安全に取得
+     * JSONパース後はDouble型になるため、適切に変換する
+     */
+    private int getIntParameter(java.util.Map<String, Object> parameters, String key) {
+        Object value = parameters.get(key);
+        if (value == null) {
+            logger.warning("Parameter '" + key + "' is null, defaulting to 0");
+            return 0;
+        }
+
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+
+        if (value instanceof String) {
+            try {
+                return Integer.parseInt((String) value);
+            } catch (NumberFormatException e) {
+                logger.warning("Parameter '" + key + "' is not a valid number: " + value);
+                return 0;
+            }
+        }
+
+        logger.warning("Parameter '" + key + "' has unexpected type: " + value.getClass().getName());
+        return 0;
     }
 
     /**

@@ -83,7 +83,7 @@ public class AIServerClient {
 
                 if (brainResponse.isTaskAdded() && brainResponse.getTask() != null) {
                     logger.info(String.format(
-                            "New task generated: %s (ID: %d)",
+                            "New task generated: %s (ID: %s)",
                             brainResponse.getTask().get("type"),
                             brainResponse.getTask().get("id")
                     ));

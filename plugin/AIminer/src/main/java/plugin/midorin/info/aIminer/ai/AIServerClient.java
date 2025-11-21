@@ -27,7 +27,7 @@ public class AIServerClient {
     private final Logger logger;
 
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
-    private static final int DEFAULT_TIMEOUT_SECONDS = 60;
+    private static final int DEFAULT_TIMEOUT_SECONDS = 120; // 2 minutes for local LLM
 
     public AIServerClient(String apiUrl, Logger logger) {
         this.apiUrl = apiUrl;
@@ -62,7 +62,7 @@ public class AIServerClient {
             JsonObject requestJson = new JsonObject();
             requestJson.addProperty("model", "local-model");
             requestJson.addProperty("temperature", 0.7);
-            requestJson.addProperty("max_tokens", 2048);
+            requestJson.addProperty("max_tokens", 512); // 短い応答で高速化
 
             JsonArray messages = new JsonArray();
 
@@ -220,22 +220,31 @@ public class AIServerClient {
             }
 
             if (blocks.getVisibleBlocks() != null && !blocks.getVisibleBlocks().isEmpty()) {
-                message.append("近くのブロック:\n");
-                // 最大10件表示
+                message.append("近くのブロック (重要なもの):\n");
+                // 最大20件表示、空気と一般的なブロックを除外
                 int count = 0;
                 for (VisibleBlock block : blocks.getVisibleBlocks()) {
-                    if (count >= 10) {
-                        message.append("  ... 他 ").append(blocks.getVisibleBlocks().size() - 10).append(" ブロック\n");
+                    if (count >= 20) {
                         break;
+                    }
+                    String blockType = block.getBlockType();
+                    // 空気と一般的なブロックを除外
+                    if (blockType == null || blockType.contains("AIR") ||
+                        blockType.equals("GRASS_BLOCK") || blockType.equals("DIRT") ||
+                        blockType.equals("STONE")) {
+                        continue;
                     }
                     Position worldPos = block.getWorldPosition();
                     if (worldPos != null) {
-                        message.append(String.format("  - %s (%.1f, %.1f, %.1f)\n",
-                            block.getBlockType(), worldPos.getX(), worldPos.getY(), worldPos.getZ()));
+                        message.append(String.format("  - %s (%.0f, %.0f, %.0f)\n",
+                            blockType, worldPos.getX(), worldPos.getY(), worldPos.getZ()));
                     } else {
-                        message.append(String.format("  - %s\n", block.getBlockType()));
+                        message.append(String.format("  - %s\n", blockType));
                     }
                     count++;
+                }
+                if (count == 0) {
+                    message.append("  特筆すべきブロックなし\n");
                 }
             }
         } else {

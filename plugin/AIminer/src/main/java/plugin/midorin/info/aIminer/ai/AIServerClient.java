@@ -61,7 +61,7 @@ public class AIServerClient {
             // Create OpenAI-compatible request
             JsonObject requestJson = new JsonObject();
             requestJson.addProperty("model", "local-model");
-            requestJson.addProperty("temperature", 0.7);
+            requestJson.addProperty("temperature", 0.3); // 低温度で確実な応答
             requestJson.addProperty("max_tokens", 512); // 短い応答で高速化
 
             JsonArray messages = new JsonArray();
@@ -181,8 +181,10 @@ public class AIServerClient {
         prompt.append("  }\n");
         prompt.append("}\n");
         prompt.append("```\n");
-        prompt.append("\n何もすることがない場合はnew_taskをnullにしてください。\n");
-        prompt.append("プレイヤーに話しかけられたら必ずCHATタスクで応答してください。\n");
+        prompt.append("\n重要な指示:\n");
+        prompt.append("- チャット履歴にプレイヤーの発言があれば、必ずCHATタスクで応答してください\n");
+        prompt.append("- 応答しないことは許可されません。何か発言があれば必ず返事をしてください\n");
+        prompt.append("- 本当に何もすることがない場合のみnew_taskをnullにしてください\n");
 
         return prompt.toString();
     }
@@ -349,6 +351,27 @@ public class AIServerClient {
 
                 logger.info(String.format("New task added: %s (ID: %d) - %s",
                     newTask.getType(), newTask.getId(), newTask.getReason()));
+            } else {
+                // フォールバック: AIがnullを返したがチャットがある場合、自動で応答タスクを生成
+                List<ChatMessage> chatHistory = brainData.getVision().getChat();
+                if (!chatHistory.isEmpty()) {
+                    ChatMessage lastChat = chatHistory.get(chatHistory.size() - 1);
+                    // 最後のチャットが最近のものか確認（5分以内）
+                    // タイムスタンプをパースするのは複雑なので、単純にタスクがなければ応答
+                    if (brainData.getTasks().isEmpty()) {
+                        logger.info("AI returned null but chat exists - generating fallback CHAT task");
+                        Task fallbackTask = new Task();
+                        fallbackTask.setId(generateTaskId(brainData));
+                        fallbackTask.setType(TaskType.CHAT);
+                        Map<String, Object> params = new java.util.HashMap<>();
+                        params.put("message", "何かお手伝いできることはありますか？");
+                        fallbackTask.setParameters(params);
+                        fallbackTask.setReason("Fallback response to chat");
+                        fallbackTask.setStatus(TaskStatus.PENDING);
+                        brainData.getTasks().add(fallbackTask);
+                        logger.info("Fallback CHAT task added");
+                    }
+                }
             }
 
             return brainData;

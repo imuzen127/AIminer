@@ -15,8 +15,8 @@ public class AIProcessingTask extends BukkitRunnable {
     private final BotManager botManager;
     private final AIServerClient aiClient;
 
-    // Processing interval in seconds
-    private static final int PROCESSING_INTERVAL_SECONDS = 10;
+    // Processing interval in seconds (longer to allow LLM to complete)
+    private static final int PROCESSING_INTERVAL_SECONDS = 60;
 
     // Flag to prevent concurrent processing
     private boolean isProcessing = false;

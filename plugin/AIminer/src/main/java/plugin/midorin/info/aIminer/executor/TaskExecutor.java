@@ -65,6 +65,9 @@ public class TaskExecutor {
             logger.warning("Task failed: " + task.getId());
         }
 
+        // 完了・失敗タスクを削除（タスク履歴をクリーンに保つ）
+        brainFileManager.removeCompletedTasks();
+
         // 脳ファイルを保存
         brainFileManager.saveBrainFile();
     }

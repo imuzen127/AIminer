@@ -134,10 +134,12 @@ public class BrainFileManager {
     }
 
     /**
-     * 完了したタスクを削除
+     * 完了・失敗したタスクを削除
      */
     public void removeCompletedTasks() {
-        brainData.getTasks().removeIf(task -> task.getStatus() == TaskStatus.COMPLETED);
+        brainData.getTasks().removeIf(task ->
+            task.getStatus() == TaskStatus.COMPLETED ||
+            task.getStatus() == TaskStatus.FAILED);
     }
 
     /**

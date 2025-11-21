@@ -66,7 +66,9 @@ public final class AIminer extends JavaPlugin {
         Bukkit.getScheduler().runTask(this, () -> {
             org.bukkit.command.PluginCommand botCommand = getCommand("bot");
             if (botCommand != null) {
-                botCommand.setExecutor(new BotCommand(botManager, brainFileManager));
+                BotCommand executor = new BotCommand(botManager, brainFileManager, aiProcessingTask);
+                botCommand.setExecutor(executor);
+                botCommand.setTabCompleter(executor);
                 getLogger().info("Bot command registered.");
             } else {
                 getLogger().warning("Failed to register bot command!");

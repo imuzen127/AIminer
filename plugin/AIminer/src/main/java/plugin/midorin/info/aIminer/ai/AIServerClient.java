@@ -156,24 +156,28 @@ public class AIServerClient {
         prompt.append(rules.getTaskRules()).append("\n\n");
 
         prompt.append("## 利用可能なタスク\n");
-        for (String task : rules.getAvailableTasks()) {
-            prompt.append("- ").append(task).append("\n");
-        }
+        prompt.append("- CHAT: チャットで発言 {\"message\": \"発言内容\"}\n");
+        prompt.append("- MINE_WOOD: 木を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
+        prompt.append("- MINE_STONE: 石を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
+        prompt.append("- MOVE_TO: 指定座標へ移動 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
+        prompt.append("- GET_INVENTORY: インベントリ確認 {}\n");
+        prompt.append("- GET_POSITION: 現在位置確認 {}\n");
 
         prompt.append("\n## 応答フォーマット\n");
-        prompt.append("以下のJSON形式で応答してください：\n");
+        prompt.append("必ず以下のJSON形式で応答してください。余計な説明は不要です：\n");
         prompt.append("```json\n");
         prompt.append("{\n");
-        prompt.append("  \"thought\": \"状況分析と判断理由\",\n");
-        prompt.append("  \"memory_updates\": {\"key\": \"value\"},\n");
+        prompt.append("  \"thought\": \"状況分析（短く）\",\n");
+        prompt.append("  \"memory_updates\": {},\n");
         prompt.append("  \"new_task\": {\n");
-        prompt.append("    \"type\": \"TASK_TYPE\",\n");
-        prompt.append("    \"parameters\": {\"param\": \"value\"},\n");
-        prompt.append("    \"reason\": \"このタスクを実行する理由\"\n");
+        prompt.append("    \"type\": \"CHAT\",\n");
+        prompt.append("    \"parameters\": {\"message\": \"こんにちは！\"},\n");
+        prompt.append("    \"reason\": \"挨拶に応答\"\n");
         prompt.append("  }\n");
         prompt.append("}\n");
         prompt.append("```\n");
-        prompt.append("\nタスクが不要な場合はnew_taskをnullにしてください。\n");
+        prompt.append("\n何もすることがない場合はnew_taskをnullにしてください。\n");
+        prompt.append("プレイヤーに話しかけられたら必ずCHATタスクで応答してください。\n");
 
         return prompt.toString();
     }

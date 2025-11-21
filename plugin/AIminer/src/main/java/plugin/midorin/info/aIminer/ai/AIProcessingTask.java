@@ -37,7 +37,10 @@ public class AIProcessingTask extends BukkitRunnable {
     public void run() {
         // Skip if bot is not summoned
         if (!botManager.isBotSummoned()) {
-            plugin.getLogger().fine("AI processing skipped: Bot not summoned");
+            // 毎回表示すると煩いので10回に1回だけ表示
+            if (System.currentTimeMillis() % 100000 < 10000) {
+                plugin.getLogger().info("AI processing waiting: Bot not summoned (use /bot start)");
+            }
             return;
         }
 
@@ -46,6 +49,8 @@ public class AIProcessingTask extends BukkitRunnable {
             plugin.getLogger().warning("AI processing skipped: Previous request still in progress");
             return;
         }
+
+        plugin.getLogger().info("AI processing cycle triggered (every " + PROCESSING_INTERVAL_SECONDS + "s)");
 
         // Run AI processing asynchronously to avoid blocking server
         isProcessing = true;

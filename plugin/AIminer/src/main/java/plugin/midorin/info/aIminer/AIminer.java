@@ -56,7 +56,7 @@ public final class AIminer extends JavaPlugin {
 
         // イベントリスナーの登録
         getServer().getPluginManager().registerEvents(
-            new ChatListener(brainFileManager),
+            new ChatListener(brainFileManager, getLogger()),
             this
         );
 

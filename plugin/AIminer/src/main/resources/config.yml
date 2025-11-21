@@ -1,10 +1,10 @@
 # AIminer Plugin Configuration
 
-# AI Server Settings
+# AI Server Settings (LM Studio)
 ai-server:
-  # URL of the AI Brain API Server
-  # Default: http://localhost:8080 (same machine as Minecraft server)
-  url: "http://localhost:8080"
+  # URL of the LM Studio API Server
+  # Default: http://127.0.0.1:1234 (LM Studio local server)
+  url: "http://127.0.0.1:1234"
   
   # Enable/disable AI processing
   enabled: true

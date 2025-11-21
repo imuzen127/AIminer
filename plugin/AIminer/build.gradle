@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'plugin.midorin.info'
-version = '1.8-SNAPSHOT'
+version = '1.10-SNAPSHOT'
 
 repositories {
     mavenCentral()

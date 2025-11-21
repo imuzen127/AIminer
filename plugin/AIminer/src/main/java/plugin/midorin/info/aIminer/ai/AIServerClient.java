@@ -156,12 +156,17 @@ public class AIServerClient {
         prompt.append(rules.getTaskRules()).append("\n\n");
 
         prompt.append("## 利用可能なタスク\n");
+        prompt.append("【行動】\n");
         prompt.append("- CHAT: チャットで発言 {\"message\": \"発言内容\"}\n");
         prompt.append("- MINE_WOOD: 木を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
         prompt.append("- MINE_STONE: 石を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
         prompt.append("- MOVE_TO: 指定座標へ移動 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
-        prompt.append("- GET_INVENTORY: インベントリ確認 {}\n");
-        prompt.append("- GET_POSITION: 現在位置確認 {}\n");
+        prompt.append("【情報取得】\n");
+        prompt.append("- GET_INVENTORY: 自分のインベントリを確認\n");
+        prompt.append("- GET_POSITION: 自分の現在位置を確認\n");
+        prompt.append("- GET_ENTITY_POSITION: エンティティ(プレイヤー等)の位置 {\"entity_name\": \"プレイヤー名\"}\n");
+        prompt.append("- READ_MEMORY: メモリから情報を読み取る {\"key\": \"キー名\"}\n");
+        prompt.append("\n注意: チャット履歴は自動で視覚情報に含まれます。現在のタスクはtasksセクションに表示されます。\n");
 
         prompt.append("\n## 応答フォーマット\n");
         prompt.append("必ず以下のJSON形式で応答してください。余計な説明は不要です：\n");

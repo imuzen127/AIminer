@@ -30,16 +30,18 @@ public class AIServerClient {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private static final int DEFAULT_TIMEOUT_SECONDS = 120; // 2 minutes for local LLM
 
-    public AIServerClient(String apiUrl, Logger logger) {
+    public AIServerClient(String apiUrl, Logger logger, int timeoutSeconds) {
         this.apiUrl = apiUrl;
         this.logger = logger;
         this.gson = new GsonBuilder().setPrettyPrinting().create();
+
+        int effectiveTimeout = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
 
         // Configure HTTP client with timeouts
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(effectiveTimeout, TimeUnit.SECONDS)
                 .build();
     }
 

@@ -39,6 +39,7 @@ public final class AIminer extends JavaPlugin {
         int visionVerticalRange = getConfig().getInt("vision.vertical-range", 5);
         int visionIntervalSeconds = getConfig().getInt("vision.update-interval", 5);
         int aiProcessingIntervalSeconds = getConfig().getInt("ai-server.interval", 60);
+        int aiTimeoutSeconds = getConfig().getInt("ai-server.timeout-seconds", 120);
 
         // タスク実行システムの初期化と起動
         taskExecutor = new TaskExecutor(this, brainFileManager, botManager);
@@ -66,7 +67,8 @@ public final class AIminer extends JavaPlugin {
                 brainFileManager,
                 botManager,
                 aiServerUrl,
-                aiProcessingIntervalSeconds
+                aiProcessingIntervalSeconds,
+                aiTimeoutSeconds
             );
             aiProcessingTask.startProcessingLoop();
             getLogger().info("AI processing system started (server: " + aiServerUrl + ")");

@@ -25,12 +25,13 @@ public class AIProcessingTask extends BukkitRunnable {
             BrainFileManager brainFileManager,
             BotManager botManager,
             String aiServerUrl,
-            int processingIntervalSeconds
+            int processingIntervalSeconds,
+            int timeoutSeconds
     ) {
         this.plugin = plugin;
         this.brainFileManager = brainFileManager;
         this.botManager = botManager;
-        this.aiClient = new AIServerClient(aiServerUrl, plugin.getLogger());
+        this.aiClient = new AIServerClient(aiServerUrl, plugin.getLogger(), timeoutSeconds);
         this.processingIntervalSeconds = Math.max(5, processingIntervalSeconds);
     }
 

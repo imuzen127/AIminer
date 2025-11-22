@@ -12,6 +12,9 @@ ai-server:
   # Processing interval in seconds
   interval: 10
 
+  # HTTP timeout to AI server (seconds)
+  timeout-seconds: 120
+
 # Vision System Settings
 vision:
   # Block scanning radius (blocks)

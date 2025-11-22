@@ -149,10 +149,24 @@ public class TaskExecutor {
             return false;
         }
 
-        String command = String.format("function %s:xoak {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
+        String setCommand = String.format("function %s:oakset {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
+        String onCommand = String.format("function %s:xoak_on", DATAPACK_NS);
 
-        logger.info("Executing as " + executor.getName() + ": " + command);
-        return Bukkit.dispatchCommand(executor, command);
+        logger.info("Executing as " + executor.getName() + ": " + setCommand);
+        boolean setOk = Bukkit.dispatchCommand(executor, setCommand);
+        if (!setOk) {
+            logger.warning("Failed to set oak target position");
+            return false;
+        }
+
+        logger.info("Executing as " + executor.getName() + ": " + onCommand);
+        boolean onOk = Bukkit.dispatchCommand(executor, onCommand);
+        if (!onOk) {
+            logger.warning("Failed to enable oak continuous mining");
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -169,10 +183,24 @@ public class TaskExecutor {
             return false;
         }
 
-        String command = String.format("function %s:xstone {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
+        String setCommand = String.format("function %s:stoneset {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
+        String onCommand = String.format("function %s:xstone_on", DATAPACK_NS);
 
-        logger.info("Executing as " + executor.getName() + ": " + command);
-        return Bukkit.dispatchCommand(executor, command);
+        logger.info("Executing as " + executor.getName() + ": " + setCommand);
+        boolean setOk = Bukkit.dispatchCommand(executor, setCommand);
+        if (!setOk) {
+            logger.warning("Failed to set stone target position");
+            return false;
+        }
+
+        logger.info("Executing as " + executor.getName() + ": " + onCommand);
+        boolean onOk = Bukkit.dispatchCommand(executor, onCommand);
+        if (!onOk) {
+            logger.warning("Failed to enable stone continuous mining");
+            return false;
+        }
+
+        return true;
     }
 
     /**

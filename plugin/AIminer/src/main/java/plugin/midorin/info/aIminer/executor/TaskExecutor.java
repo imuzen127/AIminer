@@ -143,24 +143,18 @@ public class TaskExecutor {
         int y = getIntParameter(task.getParameters(), "y");
         int z = getIntParameter(task.getParameters(), "z");
 
-        CommandSender executor = getTaskExecutor();
-        if (executor == null) {
-            logger.warning("No valid command executor available");
-            return false;
-        }
-
         String setCommand = String.format("function %s:oakset {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
         String onCommand = String.format("function %s:xoak_on", DATAPACK_NS);
 
-        logger.info("Executing as " + executor.getName() + ": " + setCommand);
-        boolean setOk = Bukkit.dispatchCommand(executor, setCommand);
+        logger.info("Executing as CONSOLE: " + setCommand);
+        boolean setOk = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), setCommand);
         if (!setOk) {
             logger.warning("Failed to set oak target position");
             return false;
         }
 
-        logger.info("Executing as " + executor.getName() + ": " + onCommand);
-        boolean onOk = Bukkit.dispatchCommand(executor, onCommand);
+        logger.info("Executing as CONSOLE: " + onCommand);
+        boolean onOk = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), onCommand);
         if (!onOk) {
             logger.warning("Failed to enable oak continuous mining");
             return false;
@@ -177,24 +171,18 @@ public class TaskExecutor {
         int y = getIntParameter(task.getParameters(), "y");
         int z = getIntParameter(task.getParameters(), "z");
 
-        CommandSender executor = getTaskExecutor();
-        if (executor == null) {
-            logger.warning("No valid command executor available");
-            return false;
-        }
-
         String setCommand = String.format("function %s:stoneset {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
         String onCommand = String.format("function %s:xstone_on", DATAPACK_NS);
 
-        logger.info("Executing as " + executor.getName() + ": " + setCommand);
-        boolean setOk = Bukkit.dispatchCommand(executor, setCommand);
+        logger.info("Executing as CONSOLE: " + setCommand);
+        boolean setOk = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), setCommand);
         if (!setOk) {
             logger.warning("Failed to set stone target position");
             return false;
         }
 
-        logger.info("Executing as " + executor.getName() + ": " + onCommand);
-        boolean onOk = Bukkit.dispatchCommand(executor, onCommand);
+        logger.info("Executing as CONSOLE: " + onCommand);
+        boolean onOk = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), onCommand);
         if (!onOk) {
             logger.warning("Failed to enable stone continuous mining");
             return false;

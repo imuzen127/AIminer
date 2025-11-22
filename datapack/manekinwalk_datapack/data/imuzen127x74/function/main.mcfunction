@@ -23,6 +23,9 @@ execute as @e[tag=test1] at @s run function imuzen127x74:ifmine
 execute as @e[tag=test1] at @s if entity @e[type=item,distance=..1] run function imuzen127x74:collect/1
 
 
-execute if score oak task matches 1 run function imuzen127x74:xoak with storage minecraft:oakaim
+execute if score oak task matches 1 if score twenty task matches 1 run function imuzen127x74:xoak with storage minecraft:oakaim
 
-execute if score stone task matches 1 run function imuzen127x74:xstone with storage minecraft:stoneaim
+execute if score stone task matches 1 if score twenty task matches 1 run function imuzen127x74:xstone with storage minecraft:stoneaim
+
+scoreboard players add twenty task 1
+execute if score twenty task matches 20.. run scoreboard players set twenty task 0

@@ -1,0 +1,1 @@
+scoreboard players set oak task 0

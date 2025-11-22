@@ -14,6 +14,7 @@ scoreboard objectives add countn dummy ""
 
 scoreboard objectives add oakaim dummy ""
 scoreboard objectives add stoneaim dummy ""
+scoreboard objectives add task dummy ""
 
 
 say reloadOK

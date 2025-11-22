@@ -1,0 +1,1 @@
+scoreboard players set stone task 0

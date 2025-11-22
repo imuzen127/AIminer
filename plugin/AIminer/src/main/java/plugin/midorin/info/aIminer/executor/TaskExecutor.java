@@ -1,13 +1,22 @@
 package plugin.midorin.info.aIminer.executor;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 import plugin.midorin.info.aIminer.bot.BotManager;
 import plugin.midorin.info.aIminer.brain.BrainFileManager;
 import plugin.midorin.info.aIminer.model.Task;
 import plugin.midorin.info.aIminer.model.TaskStatus;
+import plugin.midorin.info.aIminer.model.Position;
 
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
@@ -20,6 +29,16 @@ public class TaskExecutor {
     private final BotManager botManager;
     private final Logger logger;
     private int taskId = -1;
+
+    // データパックのネームスペース（必要に応じて変更）
+    private static final String DATAPACK_NS = "imuzen127x74";
+
+    // データパックタグ（VisionScannerと揃える）
+    private static final String BOT_FEET_TAG = "test1";
+    private static final String BOT_BODY_TAG = "rider1";
+    private static final String MOVE_MARKER_TAG = "aim1";
+    private static final String WOOD_MARKER_TAG = "aim1o";
+    private static final String STONE_MARKER_TAG = "aim1s";
 
     public TaskExecutor(JavaPlugin plugin, BrainFileManager brainFileManager, BotManager botManager) {
         this.plugin = plugin;
@@ -96,6 +115,12 @@ public class TaskExecutor {
                 case GET_POSITION:
                     return executeGetPosition(task);
 
+                case GET_ENTITY_POSITION:
+                    return executeGetEntityPosition(task);
+
+                case READ_MEMORY:
+                    return executeReadMemory(task);
+
                 case WAIT:
                     return executeWait(task);
 
@@ -124,7 +149,7 @@ public class TaskExecutor {
             return false;
         }
 
-        String command = String.format("function imuzen127x74:xoak {x:%d,y:%d,z:%d}", x, y, z);
+        String command = String.format("function %s:xoak {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
 
         logger.info("Executing as " + executor.getName() + ": " + command);
         return Bukkit.dispatchCommand(executor, command);
@@ -144,7 +169,7 @@ public class TaskExecutor {
             return false;
         }
 
-        String command = String.format("function imuzen127x74:xstone {x:%d,y:%d,z:%d}", x, y, z);
+        String command = String.format("function %s:xstone {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
 
         logger.info("Executing as " + executor.getName() + ": " + command);
         return Bukkit.dispatchCommand(executor, command);
@@ -164,7 +189,7 @@ public class TaskExecutor {
             return false;
         }
 
-        String command = String.format("function imuzen127x74:xaim {x:%d,y:%d,z:%d}", x, y, z);
+        String command = String.format("function %s:xaim {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
 
         logger.info("Executing as " + executor.getName() + ": " + command);
         return Bukkit.dispatchCommand(executor, command);
@@ -227,20 +252,90 @@ public class TaskExecutor {
      * インベントリ取得タスク
      */
     private boolean executeGetInventory(Task task) {
-        String command = "data get entity @e[tag=test1,limit=1] data.Inventory";
+        LivingEntity botEntity = findBotEntity();
+        if (botEntity == null) {
+            logger.warning("Bot entity not found for inventory check");
+            return false;
+        }
 
-        logger.info("Executing: " + command);
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        List<String> summary = new ArrayList<>();
+        if (botEntity.getEquipment() != null) {
+            summary.add("mainhand:" + botEntity.getEquipment().getItemInMainHand());
+            summary.add("offhand:" + botEntity.getEquipment().getItemInOffHand());
+            summary.add("helmet:" + botEntity.getEquipment().getHelmet());
+            summary.add("chest:" + botEntity.getEquipment().getChestplate());
+            summary.add("legs:" + botEntity.getEquipment().getLeggings());
+            summary.add("boots:" + botEntity.getEquipment().getBoots());
+        }
+
+        brainFileManager.updateMemory("inventory_state", summary);
+        brainFileManager.saveBrainFile();
+        logger.info("Inventory snapshot stored in memory (equipment only)");
+        return true;
     }
 
     /**
      * 位置取得タスク
      */
     private boolean executeGetPosition(Task task) {
-        String command = "data get entity @e[tag=test1,limit=1] Pos";
+        Location loc = findBotLocation();
+        if (loc == null) {
+            logger.warning("Bot location not found");
+            return false;
+        }
 
-        logger.info("Executing: " + command);
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        Position pos = new Position(loc.getX(), loc.getY(), loc.getZ());
+        brainFileManager.updateMemory("current_position", pos);
+        brainFileManager.saveBrainFile();
+        logger.info(String.format("Bot position stored: (%.1f, %.1f, %.1f)", pos.getX(), pos.getY(), pos.getZ()));
+        return true;
+    }
+
+    /**
+     * エンティティ（プレイヤー）位置取得タスク
+     */
+    private boolean executeGetEntityPosition(Task task) {
+        Object nameObj = task.getParameters().getOrDefault("entity_name", task.getParameters().get("name"));
+        if (!(nameObj instanceof String) || ((String) nameObj).isEmpty()) {
+            logger.warning("GET_ENTITY_POSITION missing entity_name");
+            return false;
+        }
+
+        String name = (String) nameObj;
+        Player target = Bukkit.getPlayerExact(name);
+        if (target == null || !target.isOnline()) {
+            logger.warning("Target player not online: " + name);
+            return false;
+        }
+
+        Location loc = target.getLocation();
+        Position pos = new Position(loc.getX(), loc.getY(), loc.getZ());
+        brainFileManager.updateMemory("entity_position_" + name, pos);
+        brainFileManager.saveBrainFile();
+
+        String command = String.format("say [Bot] %s is at (%.1f, %.1f, %.1f)", name, pos.getX(), pos.getY(), pos.getZ());
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        logger.info("Stored entity position for " + name);
+        return true;
+    }
+
+    /**
+     * メモリ読み出しタスク
+     */
+    private boolean executeReadMemory(Task task) {
+        Object keyObj = task.getParameters().get("key");
+        if (!(keyObj instanceof String) || ((String) keyObj).isEmpty()) {
+            logger.warning("READ_MEMORY missing key");
+            return false;
+        }
+
+        String key = (String) keyObj;
+        Object value = brainFileManager.getBrainData().getMemory().get(key);
+        String valueStr = value != null ? value.toString() : "null";
+        String command = String.format("say [Bot memory] %s = %s", key, valueStr);
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        logger.info("Memory read for key '" + key + "'");
+        return true;
     }
 
     /**
@@ -249,5 +344,68 @@ public class TaskExecutor {
     private boolean executeWait(Task task) {
         logger.info("Waiting...");
         return true;
+    }
+
+    private LivingEntity findBotEntity() {
+        CommandSender owner = botManager.getBotOwner();
+        World world = null;
+        if (owner instanceof Player player && player.isOnline()) {
+            world = player.getWorld();
+        } else {
+            world = Bukkit.getWorlds().stream().findFirst().orElse(null);
+        }
+        if (world == null) {
+            return null;
+        }
+        Entity entity = findFirstEntityByTag(world, BOT_FEET_TAG);
+        if (entity instanceof LivingEntity living) {
+            return living;
+        }
+        entity = findFirstEntityByTag(world, BOT_BODY_TAG);
+        if (entity instanceof LivingEntity living) {
+            return living;
+        }
+        return null;
+    }
+
+    private Location findBotLocation() {
+        CommandSender owner = botManager.getBotOwner();
+        World world = null;
+        if (owner instanceof Player player && player.isOnline()) {
+            world = player.getWorld();
+        } else {
+            world = Bukkit.getWorlds().stream().findFirst().orElse(null);
+        }
+        if (world == null) {
+            return null;
+        }
+
+        Location loc = findFirstByTag(world, BOT_FEET_TAG);
+        if (loc != null) return loc;
+        loc = findFirstByTag(world, BOT_BODY_TAG);
+        if (loc != null) return loc;
+        loc = findFirstByTag(world, MOVE_MARKER_TAG);
+        if (loc != null) return loc;
+        loc = findFirstByTag(world, WOOD_MARKER_TAG);
+        if (loc != null) return loc;
+        return findFirstByTag(world, STONE_MARKER_TAG);
+    }
+
+    private Location findFirstByTag(org.bukkit.World world, String tag) {
+        for (Entity entity : world.getEntities()) {
+            if (entity.getScoreboardTags().contains(tag)) {
+                return entity.getLocation();
+            }
+        }
+        return null;
+    }
+
+    private Entity findFirstEntityByTag(org.bukkit.World world, String tag) {
+        for (Entity entity : world.getEntities()) {
+            if (entity.getScoreboardTags().contains(tag)) {
+                return entity;
+            }
+        }
+        return null;
     }
 }

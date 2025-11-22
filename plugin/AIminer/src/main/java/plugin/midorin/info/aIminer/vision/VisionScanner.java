@@ -21,10 +21,23 @@ import java.util.List;
 public class VisionScanner {
     private final JavaPlugin plugin;
     private static final int DEFAULT_SCAN_RADIUS = 10;
-    private static final int VERTICAL_SCAN_RANGE = 5; // 上下のスキャン範囲
+
+    // データパックで利用しているタグ定義
+    private static final String BOT_FEET_TAG = "test1";      // ゾンビピグリン（実体）
+    private static final String BOT_BODY_TAG = "rider1";     // マネキン（見た目）
+    private static final String MOVE_MARKER_TAG = "aim1";    // 移動先マーカー
+    private static final String WOOD_MARKER_TAG = "aim1o";   // 木掘りマーカー
+    private static final String STONE_MARKER_TAG = "aim1s";  // 石掘りマーカー
+
+    private final int verticalScanRange; // 上下のスキャン範囲
 
     public VisionScanner(JavaPlugin plugin) {
+        this(plugin, 5);
+    }
+
+    public VisionScanner(JavaPlugin plugin, int verticalScanRange) {
         this.plugin = plugin;
+        this.verticalScanRange = Math.max(1, verticalScanRange);
     }
 
     /**
@@ -82,7 +95,7 @@ public class VisionScanner {
 
         // 立方体領域をスキャン（最適化: AIRブロックは除外）
         for (int x = -radius; x <= radius; x++) {
-            for (int y = -VERTICAL_SCAN_RANGE; y <= VERTICAL_SCAN_RANGE; y++) {
+            for (int y = -verticalScanRange; y <= verticalScanRange; y++) {
                 for (int z = -radius; z <= radius; z++) {
                     Block block = world.getBlockAt(centerX + x, centerY + y, centerZ + z);
 
@@ -145,20 +158,42 @@ public class VisionScanner {
             return null;
         }
 
-        // "imuzen127x74" タグを持つエンティティを検索
-        // データパックで召喚されたマネキンを探す
-        for (Entity entity : world.getEntities()) {
-            // ArmorStandを探す（データパックで召喚されたマネキン）
-            if (entity.getType().toString().equals("ARMOR_STAND")) {
-                // カスタム名やタグでフィルタリング
-                if (entity.getScoreboardTags().contains("aiminer_bot") ||
-                    entity.getScoreboardTags().contains("imuzen127x74")) {
-                    return entity.getLocation();
-                }
-            }
+        // 優先順位: 足(piglin) -> 見た目(armor stand) -> マーカー類
+        Location loc = findFirstByTag(world, BOT_FEET_TAG);
+        if (loc != null) {
+            return loc;
         }
 
-        plugin.getLogger().fine("Bot entity not found in world");
+        loc = findFirstByTag(world, BOT_BODY_TAG);
+        if (loc != null) {
+            return loc;
+        }
+
+        loc = findFirstByTag(world, MOVE_MARKER_TAG);
+        if (loc != null) {
+            return loc;
+        }
+
+        loc = findFirstByTag(world, WOOD_MARKER_TAG);
+        if (loc != null) {
+            return loc;
+        }
+
+        loc = findFirstByTag(world, STONE_MARKER_TAG);
+        if (loc != null) {
+            return loc;
+        }
+
+        plugin.getLogger().fine("Bot entity not found in world (tags: test1/rider1/aim1/aim1o/aim1s)");
+        return null;
+    }
+
+    private Location findFirstByTag(World world, String tag) {
+        for (Entity entity : world.getEntities()) {
+            if (entity.getScoreboardTags().contains(tag)) {
+                return entity.getLocation();
+            }
+        }
         return null;
     }
 

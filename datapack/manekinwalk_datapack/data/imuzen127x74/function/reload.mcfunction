@@ -12,4 +12,8 @@ scoreboard objectives add pickupo dummy ""
 scoreboard objectives add count dummy ""
 scoreboard objectives add countn dummy ""
 
+scoreboard objectives add oakaim dummy ""
+scoreboard objectives add stoneaim dummy ""
+
+
 say reloadOK

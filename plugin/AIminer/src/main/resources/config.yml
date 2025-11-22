@@ -16,6 +16,8 @@ ai-server:
 vision:
   # Block scanning radius (blocks)
   scan-radius: 10
+  # Vertical scan range (blocks up/down)
+  vertical-range: 5
   
   # Vision update interval in seconds
   update-interval: 5

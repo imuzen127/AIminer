@@ -14,10 +14,9 @@ public class AIProcessingTask extends BukkitRunnable {
     private final BrainFileManager brainFileManager;
     private final BotManager botManager;
     private final AIServerClient aiClient;
+    private final int processingIntervalSeconds;
 
     // Processing interval in seconds (longer to allow LLM to complete)
-    private static final int PROCESSING_INTERVAL_SECONDS = 60;
-
     // Flag to prevent concurrent processing
     private boolean isProcessing = false;
 
@@ -25,12 +24,14 @@ public class AIProcessingTask extends BukkitRunnable {
             JavaPlugin plugin,
             BrainFileManager brainFileManager,
             BotManager botManager,
-            String aiServerUrl
+            String aiServerUrl,
+            int processingIntervalSeconds
     ) {
         this.plugin = plugin;
         this.brainFileManager = brainFileManager;
         this.botManager = botManager;
         this.aiClient = new AIServerClient(aiServerUrl, plugin.getLogger());
+        this.processingIntervalSeconds = Math.max(5, processingIntervalSeconds);
     }
 
     @Override
@@ -50,7 +51,7 @@ public class AIProcessingTask extends BukkitRunnable {
             return;
         }
 
-        plugin.getLogger().info("AI processing cycle triggered (every " + PROCESSING_INTERVAL_SECONDS + "s)");
+        plugin.getLogger().info("AI processing cycle triggered (every " + processingIntervalSeconds + "s)");
 
         // Run AI processing asynchronously to avoid blocking server
         isProcessing = true;
@@ -103,12 +104,12 @@ public class AIProcessingTask extends BukkitRunnable {
         }
 
         // Start periodic task (every N seconds)
-        long intervalTicks = PROCESSING_INTERVAL_SECONDS * 20L;
+        long intervalTicks = processingIntervalSeconds * 20L;
         this.runTaskTimer(plugin, 100L, intervalTicks); // Start after 5 seconds, then every N seconds
 
         plugin.getLogger().info(String.format(
                 "AI processing task started (interval: %d seconds)",
-                PROCESSING_INTERVAL_SECONDS
+                processingIntervalSeconds
         ));
     }
 

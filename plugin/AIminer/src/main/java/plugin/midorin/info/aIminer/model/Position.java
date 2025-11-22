@@ -38,4 +38,9 @@ public class Position {
     public void setZ(double z) {
         this.z = z;
     }
+
+    @Override
+    public String toString() {
+        return String.format("(%.1f, %.1f, %.1f)", x, y, z);
+    }
 }

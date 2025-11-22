@@ -22,15 +22,23 @@ public class VisionUpdateTask extends BukkitRunnable {
     private final VisionScanner visionScanner;
 
     // 視覚更新の間隔（秒）
-    private static final int UPDATE_INTERVAL_SECONDS = 5;
-    // スキャン半径
-    private static final int SCAN_RADIUS = 10;
+    private final int updateIntervalSeconds;
+    private final int scanRadius;
 
-    public VisionUpdateTask(JavaPlugin plugin, BrainFileManager brainFileManager, BotManager botManager) {
+    public VisionUpdateTask(
+        JavaPlugin plugin,
+        BrainFileManager brainFileManager,
+        BotManager botManager,
+        int scanRadius,
+        int verticalScanRange,
+        int updateIntervalSeconds
+    ) {
         this.plugin = plugin;
         this.brainFileManager = brainFileManager;
         this.botManager = botManager;
-        this.visionScanner = new VisionScanner(plugin);
+        this.scanRadius = scanRadius;
+        this.updateIntervalSeconds = updateIntervalSeconds;
+        this.visionScanner = new VisionScanner(plugin, verticalScanRange);
     }
 
     @Override
@@ -72,7 +80,7 @@ public class VisionUpdateTask extends BukkitRunnable {
         }
 
         // 視覚情報をスキャン
-        BlockVisionData visionData = visionScanner.scanSurroundings(scanLocation, SCAN_RADIUS);
+        BlockVisionData visionData = visionScanner.scanSurroundings(scanLocation, scanRadius);
 
         // Brain Fileに保存
         brainFileManager.updateBlockVision(visionData);
@@ -84,6 +92,7 @@ public class VisionUpdateTask extends BukkitRunnable {
             (int) scanLocation.getZ()
         );
         brainFileManager.updateMemory("current_position", botPosition);
+        brainFileManager.updateMemory("bot_position_source", "vision_scan");
 
         plugin.getLogger().fine(String.format(
             "Vision updated: %d blocks at location (%.1f, %.1f, %.1f)",
@@ -99,11 +108,11 @@ public class VisionUpdateTask extends BukkitRunnable {
      */
     public void startVisionLoop() {
         // 5秒ごとに実行（20tick = 1秒）
-        long intervalTicks = UPDATE_INTERVAL_SECONDS * 20L;
-        this.runTaskTimer(plugin, 20L, intervalTicks); // 1秒後に開始、その後5秒ごと
+        long intervalTicks = updateIntervalSeconds * 20L;
+        this.runTaskTimer(plugin, 20L, intervalTicks); // 1秒後に開始、その後指定秒ごと
         plugin.getLogger().info(String.format(
             "Vision update task started (interval: %d seconds, radius: %d blocks)",
-            UPDATE_INTERVAL_SECONDS, SCAN_RADIUS
+            updateIntervalSeconds, scanRadius
         ));
     }
 

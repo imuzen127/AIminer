@@ -8,6 +8,7 @@ import plugin.midorin.info.aIminer.brain.BrainFileManager;
 import plugin.midorin.info.aIminer.command.BotCommand;
 import plugin.midorin.info.aIminer.executor.TaskExecutor;
 import plugin.midorin.info.aIminer.listener.ChatListener;
+import plugin.midorin.info.aIminer.listener.PlayerActivityListener;
 import plugin.midorin.info.aIminer.vision.VisionUpdateTask;
 
 public final class AIminer extends JavaPlugin {
@@ -33,13 +34,26 @@ public final class AIminer extends JavaPlugin {
         // ボットマネージャーの初期化
         botManager = new BotManager(this);
 
+        // 設定値の読み込み
+        int visionRadius = getConfig().getInt("vision.scan-radius", 10);
+        int visionVerticalRange = getConfig().getInt("vision.vertical-range", 5);
+        int visionIntervalSeconds = getConfig().getInt("vision.update-interval", 5);
+        int aiProcessingIntervalSeconds = getConfig().getInt("ai-server.interval", 60);
+
         // タスク実行システムの初期化と起動
         taskExecutor = new TaskExecutor(this, brainFileManager, botManager);
         taskExecutor.startTaskLoop();
         getLogger().info("Task executor started.");
 
         // 視覚システムの初期化と起動
-        visionUpdateTask = new VisionUpdateTask(this, brainFileManager, botManager);
+        visionUpdateTask = new VisionUpdateTask(
+            this,
+            brainFileManager,
+            botManager,
+            visionRadius,
+            visionVerticalRange,
+            visionIntervalSeconds
+        );
         visionUpdateTask.startVisionLoop();
         getLogger().info("Vision update system started.");
 
@@ -47,7 +61,13 @@ public final class AIminer extends JavaPlugin {
         boolean aiEnabled = getConfig().getBoolean("ai-server.enabled", true);
         if (aiEnabled) {
             String aiServerUrl = getConfig().getString("ai-server.url", "http://localhost:8080");
-            aiProcessingTask = new AIProcessingTask(this, brainFileManager, botManager, aiServerUrl);
+            aiProcessingTask = new AIProcessingTask(
+                this,
+                brainFileManager,
+                botManager,
+                aiServerUrl,
+                aiProcessingIntervalSeconds
+            );
             aiProcessingTask.startProcessingLoop();
             getLogger().info("AI processing system started (server: " + aiServerUrl + ")");
         } else {
@@ -57,6 +77,10 @@ public final class AIminer extends JavaPlugin {
         // イベントリスナーの登録
         getServer().getPluginManager().registerEvents(
             new ChatListener(brainFileManager, getLogger()),
+            this
+        );
+        getServer().getPluginManager().registerEvents(
+            new PlayerActivityListener(brainFileManager, getLogger()),
             this
         );
 

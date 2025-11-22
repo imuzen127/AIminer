@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -183,8 +184,9 @@ public class AIServerClient {
         prompt.append("```\n");
         prompt.append("\n重要な指示:\n");
         prompt.append("- チャット履歴にプレイヤーの発言があれば、必ずCHATタスクで応答してください\n");
-        prompt.append("- 応答しないことは許可されません。何か発言があれば必ず返事をしてください\n");
-        prompt.append("- 本当に何もすることがない場合のみnew_taskをnullにしてください\n");
+        prompt.append("- new_taskは原則必須です。WAITは「他のアクションが進行中で待つ必要がある」場合のみ\n");
+        prompt.append("- 何も依頼が無くても暇つぶし行動を提案してください: 近くの木/石を掘る、近づくためにMOVE_TOする、定期的にGET_POSITION/GET_INVENTORYする、状況報告をCHATする\n");
+        prompt.append("- 本当に行動できる情報が無い時のみnew_taskをnullにしてよい\n");
 
         return prompt.toString();
     }
@@ -352,25 +354,12 @@ public class AIServerClient {
                 logger.info(String.format("New task added: %s (ID: %d) - %s",
                     newTask.getType(), newTask.getId(), newTask.getReason()));
             } else {
-                // フォールバック: AIがnullを返したがチャットがある場合、自動で応答タスクを生成
-                List<ChatMessage> chatHistory = brainData.getVision().getChat();
-                if (!chatHistory.isEmpty()) {
-                    ChatMessage lastChat = chatHistory.get(chatHistory.size() - 1);
-                    // 最後のチャットが最近のものか確認（5分以内）
-                    // タイムスタンプをパースするのは複雑なので、単純にタスクがなければ応答
-                    if (brainData.getTasks().isEmpty()) {
-                        logger.info("AI returned null but chat exists - generating fallback CHAT task");
-                        Task fallbackTask = new Task();
-                        fallbackTask.setId(generateTaskId(brainData));
-                        fallbackTask.setType(TaskType.CHAT);
-                        Map<String, Object> params = new java.util.HashMap<>();
-                        params.put("message", "何かお手伝いできることはありますか？");
-                        fallbackTask.setParameters(params);
-                        fallbackTask.setReason("Fallback response to chat");
-                        fallbackTask.setStatus(TaskStatus.PENDING);
-                        brainData.getTasks().add(fallbackTask);
-                        logger.info("Fallback CHAT task added");
-                    }
+                // フォールバック: AIがnullを返した場合でも行動する
+                Task fallbackTask = createFallbackTask(brainData);
+                if (fallbackTask != null) {
+                    brainData.getTasks().add(fallbackTask);
+                    logger.info(String.format("Fallback task added: %s (ID: %d) - %s",
+                        fallbackTask.getType(), fallbackTask.getId(), fallbackTask.getReason()));
                 }
             }
 
@@ -381,6 +370,90 @@ public class AIServerClient {
             e.printStackTrace();
             return brainData;
         }
+    }
+
+    private Task createFallbackTask(BrainData brainData) {
+        // 1. 直近のチャットがあるなら簡易応答
+        List<ChatMessage> chatHistory = brainData.getVision().getChat();
+        if (!chatHistory.isEmpty() && brainData.getTasks().isEmpty()) {
+            Task fallbackChat = new Task();
+            fallbackChat.setId(generateTaskId(brainData));
+            fallbackChat.setType(TaskType.CHAT);
+            Map<String, Object> params = new java.util.HashMap<>();
+            params.put("message", "まだ行動指示がなければ周囲を見て動きますね。");
+            fallbackChat.setParameters(params);
+            fallbackChat.setReason("Fallback response to chat");
+            fallbackChat.setStatus(TaskStatus.PENDING);
+            return fallbackChat;
+        }
+
+        // 2. 近くのブロックに基づいて採掘タスクを作る
+        BlockVisionData blockVisionData = brainData.getVision().getBlocks();
+        if (blockVisionData != null && blockVisionData.getVisibleBlocks() != null) {
+            for (VisibleBlock block : blockVisionData.getVisibleBlocks()) {
+                String type = block.getBlockType();
+                if (type == null) {
+                    continue;
+                }
+                Position worldPos = block.getWorldPosition();
+                if (worldPos == null) {
+                    continue;
+                }
+                if (type.contains("LOG")) {
+                    Task mineWood = new Task();
+                    mineWood.setId(generateTaskId(brainData));
+                    mineWood.setType(TaskType.MINE_WOOD);
+                    Map<String, Object> params = new java.util.HashMap<>();
+                    params.put("x", (int) worldPos.getX());
+                    params.put("y", (int) worldPos.getY());
+                    params.put("z", (int) worldPos.getZ());
+                    mineWood.setParameters(params);
+                    mineWood.setReason("Fallback: visible wood block");
+                    mineWood.setStatus(TaskStatus.PENDING);
+                    return mineWood;
+                }
+                if (type.equals("STONE") || type.contains("STONE")) {
+                    Task mineStone = new Task();
+                    mineStone.setId(generateTaskId(brainData));
+                    mineStone.setType(TaskType.MINE_STONE);
+                    Map<String, Object> params = new java.util.HashMap<>();
+                    params.put("x", (int) worldPos.getX());
+                    params.put("y", (int) worldPos.getY());
+                    params.put("z", (int) worldPos.getZ());
+                    mineStone.setParameters(params);
+                    mineStone.setReason("Fallback: visible stone block");
+                    mineStone.setStatus(TaskStatus.PENDING);
+                    return mineStone;
+                }
+            }
+        }
+
+        // 3. 現在位置が分かるなら近場に移動して探索
+        Object posObj = brainData.getMemory().get("current_position");
+        if (posObj instanceof Position pos) {
+            Task move = new Task();
+            move.setId(generateTaskId(brainData));
+            move.setType(TaskType.MOVE_TO);
+            Map<String, Object> params = new java.util.HashMap<>();
+            int dx = ThreadLocalRandom.current().nextInt(-5, 6);
+            int dz = ThreadLocalRandom.current().nextInt(-5, 6);
+            params.put("x", (int) pos.getX() + dx);
+            params.put("y", (int) pos.getY());
+            params.put("z", (int) pos.getZ() + dz);
+            move.setParameters(params);
+            move.setReason("Fallback: random exploration move");
+            move.setStatus(TaskStatus.PENDING);
+            return move;
+        }
+
+        // 4. それでも何もできなければ位置確認
+        Task getPos = new Task();
+        getPos.setId(generateTaskId(brainData));
+        getPos.setType(TaskType.GET_POSITION);
+        getPos.setParameters(new java.util.HashMap<>());
+        getPos.setReason("Fallback: refresh position");
+        getPos.setStatus(TaskStatus.PENDING);
+        return getPos;
     }
 
     /**

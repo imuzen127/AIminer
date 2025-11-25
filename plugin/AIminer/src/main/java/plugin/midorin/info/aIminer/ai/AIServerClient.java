@@ -307,7 +307,16 @@ public class AIServerClient {
                 return brainData;
             }
 
-            JsonObject responseObj = JsonParser.parseString(jsonStr).getAsJsonObject();
+            JsonObject responseObj = tryParseJsonObject(jsonStr);
+            if (responseObj == null) {
+                String sanitized = sanitizeJsonArrays(jsonStr);
+                responseObj = tryParseJsonObject(sanitized);
+                if (responseObj == null) {
+                    logger.warning("Failed to parse AI response even after sanitizing");
+                    return brainData;
+                }
+                logger.warning("Parsed AI response after sanitizing malformed arrays");
+            }
 
             // Log thought process
             if (responseObj.has("thought")) {
@@ -372,6 +381,42 @@ public class AIServerClient {
             e.printStackTrace();
             return brainData;
         }
+    }
+
+    private JsonObject tryParseJsonObject(String jsonStr) {
+        try {
+            return JsonParser.parseString(jsonStr).getAsJsonObject();
+        } catch (Exception e) {
+            logger.warning("JSON parse failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Quote array entries for known keys if they are unquoted (e.g., important_locations).
+     */
+    private String sanitizeJsonArrays(String jsonStr) {
+        String result = quoteArrayIfUnquoted(jsonStr, "important_locations");
+        result = quoteArrayIfUnquoted(result, "player_requests");
+        return result;
+    }
+
+    private String quoteArrayIfUnquoted(String jsonStr, String key) {
+        Pattern p = Pattern.compile("(\"" + key + "\"\\s*:\\s*\\[)([^\\]]*)(\\])", Pattern.MULTILINE);
+        Matcher m = p.matcher(jsonStr);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String body = m.group(2).trim();
+            if (body.isEmpty() || body.contains("\"")) {
+                m.appendReplacement(sb, m.group());
+                continue;
+            }
+            String escaped = body.replace("\\", "\\\\").replace("\"", "\\\"");
+            String replacement = m.group(1) + "\"" + escaped + "\"" + m.group(3);
+            m.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     private Task createFallbackTask(BrainData brainData) {

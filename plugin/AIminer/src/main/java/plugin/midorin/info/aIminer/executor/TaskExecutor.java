@@ -9,6 +9,7 @@ import plugin.midorin.info.aIminer.bot.BotManager;
 import plugin.midorin.info.aIminer.brain.BrainFileManager;
 import plugin.midorin.info.aIminer.model.Task;
 import plugin.midorin.info.aIminer.model.TaskStatus;
+import plugin.midorin.info.aIminer.model.TaskType;
 import plugin.midorin.info.aIminer.model.Position;
 
 import org.bukkit.entity.Entity;
@@ -16,7 +17,9 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -160,6 +163,9 @@ public class TaskExecutor {
             return false;
         }
 
+        recordMineAction("MINE_WOOD", x, y, z);
+        captureInventorySnapshot("after_mine_wood");
+
         return true;
     }
 
@@ -188,6 +194,9 @@ public class TaskExecutor {
             return false;
         }
 
+        recordMineAction("MINE_STONE", x, y, z);
+        captureInventorySnapshot("after_mine_stone");
+
         return true;
     }
 
@@ -208,7 +217,12 @@ public class TaskExecutor {
         String command = String.format("function %s:xaim {x:%d, y:%d, z:%d}", DATAPACK_NS, x, y, z);
 
         logger.info("Executing as " + executor.getName() + ": " + command);
-        return Bukkit.dispatchCommand(executor, command);
+        boolean ok = Bukkit.dispatchCommand(executor, command);
+        if (ok) {
+            recordCurrentPosition(); // refresh memory with latest position after move command
+            maybeEnqueueMineIfNearTarget();
+        }
+        return ok;
     }
 
     /**
@@ -261,33 +275,18 @@ public class TaskExecutor {
         String command = "say [Bot] " + message;
 
         logger.info("Executing: " + command);
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        boolean ok = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+        if (ok) {
+            recordBotChat(message);
+        }
+        return ok;
     }
 
     /**
      * インベントリ取得タスク
      */
     private boolean executeGetInventory(Task task) {
-        LivingEntity botEntity = findBotEntity();
-        if (botEntity == null) {
-            logger.warning("Bot entity not found for inventory check");
-            return false;
-        }
-
-        List<String> summary = new ArrayList<>();
-        if (botEntity.getEquipment() != null) {
-            summary.add("mainhand:" + botEntity.getEquipment().getItemInMainHand());
-            summary.add("offhand:" + botEntity.getEquipment().getItemInOffHand());
-            summary.add("helmet:" + botEntity.getEquipment().getHelmet());
-            summary.add("chest:" + botEntity.getEquipment().getChestplate());
-            summary.add("legs:" + botEntity.getEquipment().getLeggings());
-            summary.add("boots:" + botEntity.getEquipment().getBoots());
-        }
-
-        brainFileManager.updateMemory("inventory_state", summary);
-        brainFileManager.saveBrainFile();
-        logger.info("Inventory snapshot stored in memory (equipment only)");
-        return true;
+        return captureInventorySnapshot("explicit_get_inventory");
     }
 
     /**
@@ -302,6 +301,7 @@ public class TaskExecutor {
 
         Position pos = new Position(loc.getX(), loc.getY(), loc.getZ());
         brainFileManager.updateMemory("current_position", pos);
+        brainFileManager.updateMemory("current_position_ts", System.currentTimeMillis());
         brainFileManager.saveBrainFile();
         logger.info(String.format("Bot position stored: (%.1f, %.1f, %.1f)", pos.getX(), pos.getY(), pos.getZ()));
         return true;
@@ -360,6 +360,161 @@ public class TaskExecutor {
     private boolean executeWait(Task task) {
         logger.info("Waiting...");
         return true;
+    }
+
+    private void recordMineAction(String type, int x, int y, int z) {
+        Map<String, Object> info = new HashMap<>();
+        info.put("type", type);
+        info.put("x", x);
+        info.put("y", y);
+        info.put("z", z);
+        info.put("timestamp", System.currentTimeMillis());
+        storeMemoryAndSave("last_mine_action", info);
+    }
+
+    private void recordBotChat(String message) {
+        Map<String, Object> chatInfo = new HashMap<>();
+        chatInfo.put("message", message);
+        chatInfo.put("timestamp", System.currentTimeMillis());
+        storeMemoryAndSave("bot_last_chat", chatInfo);
+    }
+
+    private boolean captureInventorySnapshot(String reason) {
+        String command = String.format("data get entity @e[tag=%s,limit=1] data.Inventory", BOT_FEET_TAG);
+        boolean ok = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+
+        // Also gather equipment summary from the tagged entity if possible
+        List<String> equipmentSummary = new ArrayList<>();
+        LivingEntity entity = findBotEntity();
+        if (entity != null && entity.getEquipment() != null) {
+            equipmentSummary.add("mainhand:" + entity.getEquipment().getItemInMainHand());
+            equipmentSummary.add("offhand:" + entity.getEquipment().getItemInOffHand());
+            equipmentSummary.add("helmet:" + entity.getEquipment().getHelmet());
+            equipmentSummary.add("chest:" + entity.getEquipment().getChestplate());
+            equipmentSummary.add("legs:" + entity.getEquipment().getLeggings());
+            equipmentSummary.add("boots:" + entity.getEquipment().getBoots());
+        }
+
+        Map<String, Object> snapshot = new HashMap<>();
+        snapshot.put("captured_at", System.currentTimeMillis());
+        snapshot.put("reason", reason);
+        snapshot.put("raw", new ArrayList<String>()); // raw output not captured; kept for compatibility
+        snapshot.put("equipment", equipmentSummary);
+        storeMemoryAndSave("inventory_snapshot", snapshot);
+        recordCurrentPosition(); // update position alongside inventory
+
+        if (!ok) {
+            logger.warning("Inventory command failed: " + command);
+        }
+        logger.info("Inventory snapshot stored (equipment summary size: " + equipmentSummary.size() + ")");
+        return ok;
+    }
+
+    private void storeMemoryAndSave(String key, Object value) {
+        brainFileManager.updateMemory(key, value);
+        brainFileManager.saveBrainFile();
+    }
+
+    private void recordCurrentPosition() {
+        Location loc = findBotLocation();
+        if (loc == null) {
+            return;
+        }
+        Position pos = new Position(loc.getX(), loc.getY(), loc.getZ());
+        brainFileManager.updateMemory("current_position", pos);
+        brainFileManager.updateMemory("current_position_ts", System.currentTimeMillis());
+        brainFileManager.saveBrainFile();
+    }
+
+    /**
+     * If target_location is set and we are already near it, enqueue a mine task automatically.
+     */
+    private void maybeEnqueueMineIfNearTarget() {
+        Object targetObj = brainFileManager.getBrainData().getMemory().get("target_location");
+        if (!(targetObj instanceof Map)) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> target = (Map<String, Object>) targetObj;
+        Double tx = toDouble(target.get("x"));
+        Double ty = toDouble(target.get("y"));
+        Double tz = toDouble(target.get("z"));
+        if (tx == null || ty == null || tz == null) {
+            return;
+        }
+
+        Location loc = findBotLocation();
+        if (loc == null) {
+            return;
+        }
+        double dx = loc.getX() - tx;
+        double dy = loc.getY() - ty;
+        double dz = loc.getZ() - tz;
+        double distSq = dx * dx + dy * dy + dz * dz;
+        if (distSq > 4.0) { // more than ~2 blocks away
+            return;
+        }
+
+        TaskType mineType = TaskType.MINE_WOOD;
+        Object tType = target.get("type");
+        if (tType instanceof String typeStr) {
+            if (typeStr.toUpperCase().contains("STONE")) {
+                mineType = TaskType.MINE_STONE;
+            } else if (typeStr.toUpperCase().contains("LOG")) {
+                mineType = TaskType.MINE_WOOD;
+            }
+        }
+
+        // avoid duplicate pending mine tasks for the same coords
+        for (Task t : brainFileManager.getBrainData().getTasks()) {
+            if (t.getType() == mineType && t.getStatus() == TaskStatus.PENDING) {
+                Map<String, Object> p = t.getParameters();
+                if (p != null &&
+                    getIntParameter(p, "x") == tx.intValue() &&
+                    getIntParameter(p, "y") == ty.intValue() &&
+                    getIntParameter(p, "z") == tz.intValue()) {
+                    return;
+                }
+            }
+        }
+
+        Task newTask = new Task();
+        newTask.setId(generateTaskId());
+        newTask.setType(mineType);
+        Map<String, Object> params = new HashMap<>();
+        params.put("x", tx.intValue());
+        params.put("y", ty.intValue());
+        params.put("z", tz.intValue());
+        newTask.setParameters(params);
+        newTask.setReason("Auto-mine target after arrival");
+        newTask.setStatus(TaskStatus.PENDING);
+
+        brainFileManager.addTask(newTask);
+        brainFileManager.saveBrainFile();
+        logger.info(String.format("Auto-enqueued %s at (%.0f, %.0f, %.0f)", mineType, tx, ty, tz));
+    }
+
+    private Double toDouble(Object o) {
+        if (o instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (o instanceof String s) {
+            try {
+                return Double.parseDouble(s);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private int generateTaskId() {
+        int max = 0;
+        for (Task t : brainFileManager.getBrainData().getTasks()) {
+            if (t.getId() > max) {
+                max = t.getId();
+            }
+        }
+        return max + 1;
     }
 
     private LivingEntity findBotEntity() {
@@ -425,3 +580,4 @@ public class TaskExecutor {
         return null;
     }
 }
+

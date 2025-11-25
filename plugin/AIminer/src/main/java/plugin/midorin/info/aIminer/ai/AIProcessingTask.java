@@ -15,10 +15,13 @@ public class AIProcessingTask extends BukkitRunnable {
     private final BotManager botManager;
     private final AIServerClient aiClient;
     private final int processingIntervalSeconds;
+    private static final long SKIP_LOG_COOLDOWN_MS = 15000L;
 
     // Processing interval in seconds (longer to allow LLM to complete)
     // Flag to prevent concurrent processing
-    private boolean isProcessing = false;
+    private volatile boolean isProcessing = false;
+    private volatile boolean pendingImmediateRun = false;
+    private long lastSkipLogMs = 0L;
 
     public AIProcessingTask(
             JavaPlugin plugin,
@@ -48,17 +51,23 @@ public class AIProcessingTask extends BukkitRunnable {
 
         // Skip if already processing
         if (isProcessing) {
-            plugin.getLogger().warning("AI processing skipped: Previous request still in progress");
+            long now = System.currentTimeMillis();
+            if (now - lastSkipLogMs > SKIP_LOG_COOLDOWN_MS) {
+                plugin.getLogger().info("AI processing already running; will queue another run after it finishes");
+                lastSkipLogMs = now;
+            }
+            pendingImmediateRun = true; // ensure one more run happens right after current one
             return;
         }
 
         plugin.getLogger().info("AI processing cycle triggered (every " + processingIntervalSeconds + "s)");
+        lastSkipLogMs = 0L; // reset so future skips can log after cooldown
 
         // Run AI processing asynchronously to avoid blocking server
         isProcessing = true;
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                processWithAI();
+                processWithQueue();
             } finally {
                 isProcessing = false;
             }
@@ -87,6 +96,19 @@ public class AIProcessingTask extends BukkitRunnable {
         brainFileManager.saveBrainFile();
 
         plugin.getLogger().info("AI processing completed and brain state updated");
+    }
+
+    /**
+     * Process brain data with a simple queue: if a run was requested while another
+     * was in-flight, run once more immediately after finishing.
+     */
+    private void processWithQueue() {
+        boolean runAgain;
+        do {
+            processWithAI();
+            runAgain = pendingImmediateRun;
+            pendingImmediateRun = false;
+        } while (runAgain);
     }
 
     /**

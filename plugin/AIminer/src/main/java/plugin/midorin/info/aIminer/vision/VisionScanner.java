@@ -5,22 +5,30 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import plugin.midorin.info.aIminer.model.BlockVisionData;
 import plugin.midorin.info.aIminer.model.Position;
 import plugin.midorin.info.aIminer.model.ViewDirection;
 import plugin.midorin.info.aIminer.model.VisibleBlock;
+import plugin.midorin.info.aIminer.model.VisibleEntity;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * ボットの視覚システム - 周囲のブロックをスキャンする
+ * ボットの視覚システム - 周囲のブロック、アイテム、プレイヤーをスキャンする
  */
 public class VisionScanner {
     private final JavaPlugin plugin;
     private static final int DEFAULT_SCAN_RADIUS = 10;
+    private static final int MAX_IMPORTANT_BLOCKS = 30;  // 重要ブロックの最大数
+    private static final int MAX_NORMAL_BLOCKS = 20;     // 通常ブロックの最大数
 
     // データパックで利用しているタグ定義
     private static final String BOT_FEET_TAG = "test1";      // ゾンビピグリン（実体）
@@ -28,6 +36,37 @@ public class VisionScanner {
     private static final String MOVE_MARKER_TAG = "aim1";    // 移動先マーカー
     private static final String WOOD_MARKER_TAG = "aim1o";   // 木掘りマーカー
     private static final String STONE_MARKER_TAG = "aim1s";  // 石掘りマーカー
+
+    // スキャンから除外するブロック（情報価値が低い）
+    private static final Set<Material> IGNORED_BLOCKS = EnumSet.of(
+        Material.AIR,
+        Material.CAVE_AIR,
+        Material.VOID_AIR,
+        Material.BEDROCK,       // 岩盤は掘れないので無視
+        Material.GRASS_BLOCK,
+        Material.DIRT,
+        Material.COARSE_DIRT,
+        Material.PODZOL,
+        Material.SAND,
+        Material.GRAVEL
+    );
+
+    // 重要なブロック（優先的に報告）
+    private static final Set<Material> IMPORTANT_BLOCKS = EnumSet.of(
+        // 木材系
+        Material.OAK_LOG, Material.SPRUCE_LOG, Material.BIRCH_LOG,
+        Material.JUNGLE_LOG, Material.ACACIA_LOG, Material.DARK_OAK_LOG,
+        Material.CHERRY_LOG, Material.MANGROVE_LOG,
+        // 鉱石系
+        Material.COAL_ORE, Material.IRON_ORE, Material.GOLD_ORE,
+        Material.DIAMOND_ORE, Material.EMERALD_ORE, Material.LAPIS_ORE,
+        Material.REDSTONE_ORE, Material.COPPER_ORE,
+        Material.DEEPSLATE_COAL_ORE, Material.DEEPSLATE_IRON_ORE,
+        Material.DEEPSLATE_GOLD_ORE, Material.DEEPSLATE_DIAMOND_ORE,
+        // 有用ブロック
+        Material.CHEST, Material.CRAFTING_TABLE, Material.FURNACE,
+        Material.WATER, Material.LAVA
+    );
 
     private final int verticalScanRange; // 上下のスキャン範囲
 
@@ -56,6 +95,13 @@ public class VisionScanner {
         BlockVisionData visionData = new BlockVisionData();
         visionData.setViewDistance(scanRadius);
 
+        // ボットの現在位置を記録
+        visionData.setBotPosition(new Position(
+            botLocation.getX(),
+            botLocation.getY(),
+            botLocation.getZ()
+        ));
+
         // ボットの向きを取得（yaw, pitch）
         ViewDirection viewDirection = new ViewDirection(
             botLocation.getYaw(),
@@ -63,13 +109,21 @@ public class VisionScanner {
         );
         visionData.setViewDirection(viewDirection);
 
-        // 周囲のブロックをスキャン
+        // 周囲のブロックをスキャン（フィルタリング・優先度付き）
         List<VisibleBlock> visibleBlocks = scanBlocks(botLocation, scanRadius);
         visionData.setVisibleBlocks(visibleBlocks);
 
+        // 周囲のドロップアイテムをスキャン
+        List<VisibleEntity> nearbyItems = scanItems(botLocation, scanRadius);
+        visionData.setNearbyItems(nearbyItems);
+
+        // 周囲のプレイヤーをスキャン
+        List<VisibleEntity> nearbyPlayers = scanPlayers(botLocation, scanRadius);
+        visionData.setNearbyPlayers(nearbyPlayers);
+
         plugin.getLogger().info(String.format(
-            "Vision scan completed: %d blocks found (radius: %d)",
-            visibleBlocks.size(), scanRadius
+            "Vision scan completed: %d blocks, %d items, %d players (radius: %d)",
+            visibleBlocks.size(), nearbyItems.size(), nearbyPlayers.size(), scanRadius
         ));
 
         return visionData;
@@ -83,24 +137,26 @@ public class VisionScanner {
     }
 
     /**
-     * 指定位置の周囲のブロックをスキャン
+     * 指定位置の周囲のブロックをスキャン（フィルタリング・優先度付き）
      */
     private List<VisibleBlock> scanBlocks(Location center, int radius) {
-        List<VisibleBlock> blocks = new ArrayList<>();
+        List<VisibleBlock> importantBlocks = new ArrayList<>();
+        List<VisibleBlock> normalBlocks = new ArrayList<>();
         World world = center.getWorld();
 
         int centerX = center.getBlockX();
         int centerY = center.getBlockY();
         int centerZ = center.getBlockZ();
 
-        // 立方体領域をスキャン（最適化: AIRブロックは除外）
+        // 立方体領域をスキャン
         for (int x = -radius; x <= radius; x++) {
             for (int y = -verticalScanRange; y <= verticalScanRange; y++) {
                 for (int z = -radius; z <= radius; z++) {
                     Block block = world.getBlockAt(centerX + x, centerY + y, centerZ + z);
+                    Material material = block.getType();
 
-                    // AIRブロックはスキップ（情報量削減）
-                    if (block.getType() == Material.AIR) {
+                    // 無視するブロックはスキップ
+                    if (IGNORED_BLOCKS.contains(material)) {
                         continue;
                     }
 
@@ -123,16 +179,110 @@ public class VisionScanner {
                     VisibleBlock visibleBlock = new VisibleBlock(
                         relativePos,
                         worldPos,
-                        block.getType().toString(),
-                        Math.round(distance * 100.0) / 100.0 // 小数点2桁に丸める
+                        material.toString(),
+                        Math.round(distance * 100.0) / 100.0
                     );
 
-                    blocks.add(visibleBlock);
+                    // 重要ブロックと通常ブロックを分けて管理
+                    if (IMPORTANT_BLOCKS.contains(material)) {
+                        importantBlocks.add(visibleBlock);
+                    } else {
+                        normalBlocks.add(visibleBlock);
+                    }
                 }
             }
         }
 
-        return blocks;
+        // 距離でソート（近い順）
+        importantBlocks.sort(Comparator.comparingDouble(VisibleBlock::getDistance));
+        normalBlocks.sort(Comparator.comparingDouble(VisibleBlock::getDistance));
+
+        // 結果を結合（重要ブロック優先、制限付き）
+        List<VisibleBlock> result = new ArrayList<>();
+
+        // 重要ブロックは最大30件
+        int importantCount = Math.min(importantBlocks.size(), MAX_IMPORTANT_BLOCKS);
+        for (int i = 0; i < importantCount; i++) {
+            result.add(importantBlocks.get(i));
+        }
+
+        // 通常ブロックは最大20件（STONEなど）
+        int normalCount = Math.min(normalBlocks.size(), MAX_NORMAL_BLOCKS);
+        for (int i = 0; i < normalCount; i++) {
+            result.add(normalBlocks.get(i));
+        }
+
+        return result;
+    }
+
+    /**
+     * 周囲のドロップアイテムをスキャン
+     */
+    private List<VisibleEntity> scanItems(Location center, int radius) {
+        List<VisibleEntity> items = new ArrayList<>();
+        World world = center.getWorld();
+
+        // 周囲のエンティティを取得
+        for (Entity entity : world.getNearbyEntities(center, radius, verticalScanRange, radius)) {
+            if (!(entity instanceof Item)) {
+                continue;
+            }
+
+            Item item = (Item) entity;
+            ItemStack stack = item.getItemStack();
+            Location loc = item.getLocation();
+
+            double distance = center.distance(loc);
+
+            VisibleEntity visibleItem = new VisibleEntity(
+                new Position(loc.getX(), loc.getY(), loc.getZ()),
+                "ITEM",
+                stack.getType().toString(),
+                stack.getAmount(),
+                Math.round(distance * 100.0) / 100.0
+            );
+
+            items.add(visibleItem);
+        }
+
+        // 距離でソート
+        items.sort(Comparator.comparingDouble(VisibleEntity::getDistance));
+
+        return items;
+    }
+
+    /**
+     * 周囲のプレイヤーをスキャン
+     */
+    private List<VisibleEntity> scanPlayers(Location center, int radius) {
+        List<VisibleEntity> players = new ArrayList<>();
+        World world = center.getWorld();
+
+        for (Entity entity : world.getNearbyEntities(center, radius, verticalScanRange, radius)) {
+            if (!(entity instanceof Player)) {
+                continue;
+            }
+
+            Player player = (Player) entity;
+            Location loc = player.getLocation();
+
+            double distance = center.distance(loc);
+
+            VisibleEntity visiblePlayer = new VisibleEntity(
+                new Position(loc.getX(), loc.getY(), loc.getZ()),
+                "PLAYER",
+                player.getName(),
+                1,
+                Math.round(distance * 100.0) / 100.0
+            );
+
+            players.add(visiblePlayer);
+        }
+
+        // 距離でソート
+        players.sort(Comparator.comparingDouble(VisibleEntity::getDistance));
+
+        return players;
     }
 
     /**

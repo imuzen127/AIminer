@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import okhttp3.*;
 import plugin.midorin.info.aIminer.model.*;
+import plugin.midorin.info.aIminer.model.VisibleEntity;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -163,13 +164,17 @@ public class AIServerClient {
         prompt.append("- CHAT: チャットで発言 {\"message\": \"発言内容\"}\n");
         prompt.append("- MINE_WOOD: 木を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
         prompt.append("- MINE_STONE: 石を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
-        prompt.append("- MOVE_TO: 指定座標へ移動 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
+        prompt.append("- MOVE_TO: 指定座標へ移動 {\"x\": 0, \"y\": 64, \"z\": 0} ※アイテムを拾う時も使用\n");
         prompt.append("【情報取得】\n");
         prompt.append("- GET_INVENTORY: 自分のインベントリを確認\n");
         prompt.append("- GET_POSITION: 自分の現在位置を確認\n");
         prompt.append("- GET_ENTITY_POSITION: エンティティ(プレイヤー等)の位置 {\"entity_name\": \"プレイヤー名\"}\n");
         prompt.append("- READ_MEMORY: メモリから情報を読み取る {\"key\": \"キー名\"}\n");
-        prompt.append("\n注意: チャット履歴は自動で視覚情報に含まれます。現在のタスクはtasksセクションに表示されます。\n");
+        prompt.append("\n## 重要な情報\n");
+        prompt.append("- チャット履歴は自動で視覚情報に含まれます\n");
+        prompt.append("- 周囲のアイテム（ドロップ品）はMOVE_TOで近づくと自動で拾えます\n");
+        prompt.append("- 周囲のプレイヤー位置も視覚情報に含まれます\n");
+        prompt.append("- 現在位置は視覚情報から直接取得できます（メモリのcurrent_positionより正確）\n");
 
         prompt.append("\n## 応答フォーマット\n");
         prompt.append("必ず以下のJSON形式で応答してください。余計な説明は不要です：\n");
@@ -214,17 +219,26 @@ public class AIServerClient {
         }
         message.append("\n");
 
-        // Vision - Blocks
-        message.append("### 周囲のブロック\n");
+        // Vision - Bot Position & Blocks
+        message.append("### 自分の位置と周囲の状況\n");
         BlockVisionData blocks = brainData.getVision().getBlocks();
 
-        // Get position from memory
-        Memory memory = brainData.getMemory();
-        Object posObj = memory.get("current_position");
-        if (posObj instanceof Position) {
-            Position pos = (Position) posObj;
-            message.append(String.format("現在位置: x=%.1f, y=%.1f, z=%.1f\n",
-                pos.getX(), pos.getY(), pos.getZ()));
+        // ボットの現在位置（リアルタイム）
+        if (blocks != null && blocks.getBotPosition() != null) {
+            Position botPos = blocks.getBotPosition();
+            message.append(String.format("**現在位置**: x=%.1f, y=%.1f, z=%.1f\n",
+                botPos.getX(), botPos.getY(), botPos.getZ()));
+        } else {
+            // フォールバック：メモリから取得
+            Memory memory = brainData.getMemory();
+            Object posObj = memory.get("current_position");
+            if (posObj instanceof Position) {
+                Position pos = (Position) posObj;
+                message.append(String.format("現在位置(メモリ): x=%.1f, y=%.1f, z=%.1f\n",
+                    pos.getX(), pos.getY(), pos.getZ()));
+            } else {
+                message.append("現在位置: 不明\n");
+            }
         }
 
         if (blocks != null) {
@@ -234,32 +248,55 @@ public class AIServerClient {
                     dir.getYaw(), dir.getPitch()));
             }
 
+            // 周囲のブロック（既にフィルタリング済み）
             if (blocks.getVisibleBlocks() != null && !blocks.getVisibleBlocks().isEmpty()) {
-                message.append("近くのブロック (重要なもの):\n");
-                // 最大20件表示、空気と一般的なブロックを除外
+                message.append("\n**周囲のブロック**:\n");
                 int count = 0;
                 for (VisibleBlock block : blocks.getVisibleBlocks()) {
-                    if (count >= 20) {
+                    if (count >= 30) {
+                        message.append("  ... (他にもあり)\n");
                         break;
                     }
                     String blockType = block.getBlockType();
-                    // 空気と一般的なブロックを除外
-                    if (blockType == null || blockType.contains("AIR") ||
-                        blockType.equals("GRASS_BLOCK") || blockType.equals("DIRT") ||
-                        blockType.equals("STONE")) {
-                        continue;
-                    }
+                    if (blockType == null) continue;
+
                     Position worldPos = block.getWorldPosition();
                     if (worldPos != null) {
-                        message.append(String.format("  - %s (%.0f, %.0f, %.0f)\n",
-                            blockType, worldPos.getX(), worldPos.getY(), worldPos.getZ()));
-                    } else {
-                        message.append(String.format("  - %s\n", blockType));
+                        message.append(String.format("  - %s (%.0f, %.0f, %.0f) 距離:%.1f\n",
+                            blockType, worldPos.getX(), worldPos.getY(), worldPos.getZ(),
+                            block.getDistance()));
                     }
                     count++;
                 }
                 if (count == 0) {
                     message.append("  特筆すべきブロックなし\n");
+                }
+            } else {
+                message.append("\n周囲に特筆すべきブロックなし\n");
+            }
+
+            // 周囲のドロップアイテム
+            if (blocks.getNearbyItems() != null && !blocks.getNearbyItems().isEmpty()) {
+                message.append("\n**周囲のアイテム（拾える）**:\n");
+                for (VisibleEntity item : blocks.getNearbyItems()) {
+                    Position pos = item.getWorldPosition();
+                    message.append(String.format("  - %s x%d (%.1f, %.1f, %.1f) 距離:%.1f\n",
+                        item.getName(), item.getCount(),
+                        pos.getX(), pos.getY(), pos.getZ(),
+                        item.getDistance()));
+                }
+                message.append("  ※MOVE_TOで近づくと自動で拾えます\n");
+            }
+
+            // 周囲のプレイヤー
+            if (blocks.getNearbyPlayers() != null && !blocks.getNearbyPlayers().isEmpty()) {
+                message.append("\n**周囲のプレイヤー**:\n");
+                for (VisibleEntity player : blocks.getNearbyPlayers()) {
+                    Position pos = player.getWorldPosition();
+                    message.append(String.format("  - %s (%.1f, %.1f, %.1f) 距離:%.1f\n",
+                        player.getName(),
+                        pos.getX(), pos.getY(), pos.getZ(),
+                        player.getDistance()));
                 }
             }
         } else {
@@ -269,11 +306,17 @@ public class AIServerClient {
 
         // Memory
         message.append("### メモリ\n");
+        Memory memory = brainData.getMemory();
         if (memory == null || memory.getData().isEmpty()) {
             message.append("空\n");
         } else {
             for (Map.Entry<String, Object> entry : memory.getData().entrySet()) {
-                message.append(String.format("- %s: %s\n", entry.getKey(), entry.getValue()));
+                // 長すぎるデータは省略
+                String value = entry.getValue().toString();
+                if (value.length() > 100) {
+                    value = value.substring(0, 100) + "...";
+                }
+                message.append(String.format("- %s: %s\n", entry.getKey(), value));
             }
         }
         message.append("\n");

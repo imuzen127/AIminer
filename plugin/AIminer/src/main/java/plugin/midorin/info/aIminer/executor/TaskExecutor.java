@@ -266,6 +266,7 @@ public class TaskExecutor {
 
     /**
      * インベントリ取得タスク
+     * ゾンビピグリンのHandItemsを確認し、アイテム情報を取得
      */
     private boolean executeGetInventory(Task task) {
         LivingEntity botEntity = findBotEntity();
@@ -274,19 +275,46 @@ public class TaskExecutor {
             return false;
         }
 
-        List<String> summary = new ArrayList<>();
+        List<String> inventory = new ArrayList<>();
+
+        // 装備品を確認
         if (botEntity.getEquipment() != null) {
-            summary.add("mainhand:" + botEntity.getEquipment().getItemInMainHand());
-            summary.add("offhand:" + botEntity.getEquipment().getItemInOffHand());
-            summary.add("helmet:" + botEntity.getEquipment().getHelmet());
-            summary.add("chest:" + botEntity.getEquipment().getChestplate());
-            summary.add("legs:" + botEntity.getEquipment().getLeggings());
-            summary.add("boots:" + botEntity.getEquipment().getBoots());
+            org.bukkit.inventory.ItemStack mainHand = botEntity.getEquipment().getItemInMainHand();
+            org.bukkit.inventory.ItemStack offHand = botEntity.getEquipment().getItemInOffHand();
+
+            if (mainHand != null && mainHand.getType() != org.bukkit.Material.AIR) {
+                inventory.add(String.format("mainhand: %s x%d",
+                    mainHand.getType().toString(), mainHand.getAmount()));
+            }
+            if (offHand != null && offHand.getType() != org.bukkit.Material.AIR) {
+                inventory.add(String.format("offhand: %s x%d",
+                    offHand.getType().toString(), offHand.getAmount()));
+            }
         }
 
-        brainFileManager.updateMemory("inventory_state", summary);
+        // PiglinZombie特有：インベントリがある場合は追加で取得を試みる
+        if (botEntity instanceof org.bukkit.entity.PigZombie) {
+            org.bukkit.entity.PigZombie piglin = (org.bukkit.entity.PigZombie) botEntity;
+            org.bukkit.inventory.EntityEquipment equip = piglin.getEquipment();
+            if (equip != null) {
+                // ArmorContentsも確認
+                for (org.bukkit.inventory.ItemStack armor : equip.getArmorContents()) {
+                    if (armor != null && armor.getType() != org.bukkit.Material.AIR) {
+                        inventory.add(String.format("armor: %s x%d",
+                            armor.getType().toString(), armor.getAmount()));
+                    }
+                }
+            }
+        }
+
+        // インベントリが空の場合
+        if (inventory.isEmpty()) {
+            inventory.add("empty");
+        }
+
+        brainFileManager.updateMemory("inventory_state", inventory);
         brainFileManager.saveBrainFile();
-        logger.info("Inventory snapshot stored in memory (equipment only)");
+        logger.info("Inventory snapshot stored (equipment summary size: " + inventory.size() + ")");
         return true;
     }
 

@@ -24,7 +24,8 @@ import java.util.stream.Collectors;
 
 /**
  * タスクを実行するクラス
- * brain.jsonのtasksセクションを監視し、PENDINGタスクを自動実行
+ * brain.jsonのtasksセクションを監視し、PENDINGタスクをマルチタスク的に実行
+ * 失敗したタスクはスキップして次のタスクを試行
  */
 public class TaskExecutor {
     private final JavaPlugin plugin;
@@ -44,6 +45,10 @@ public class TaskExecutor {
     private static final String WOOD_MARKER_TAG = "aim1o";
     private static final String STONE_MARKER_TAG = "aim1s";
 
+    // マルチタスク設定
+    private static final int MAX_TASKS_PER_CYCLE = 3;  // 1サイクルで処理する最大タスク数
+    private static final int MAX_RETRY_COUNT = 2;       // タスクの最大リトライ回数
+
     public TaskExecutor(JavaPlugin plugin, BrainFileManager brainFileManager, BotManager botManager, DataCommandListener dataCommandListener) {
         this.plugin = plugin;
         this.brainFileManager = brainFileManager;
@@ -57,43 +62,64 @@ public class TaskExecutor {
      */
     public void startTaskLoop() {
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            processNextTask();
+            processMultipleTasks();
         }, 0L, 20L); // 0tick後に開始、20tickごとに実行
     }
 
     /**
-     * 次のPENDINGタスクを処理
+     * 複数のPENDINGタスクをマルチタスク的に処理
+     * 失敗したタスクはスキップして次のタスクを試行
      */
-    private void processNextTask() {
-        Task task = brainFileManager.getNextPendingTask();
+    private void processMultipleTasks() {
+        List<Task> pendingTasks = brainFileManager.getAllPendingTasks();
 
-        if (task == null) {
-            return; // タスクがない場合は何もしない
+        if (pendingTasks.isEmpty()) {
+            return;
         }
 
-        logger.info("Executing task: " + task.getType() + " (ID: " + task.getId() + ")");
+        int processedCount = 0;
+        int successCount = 0;
 
-        // タスクをIN_PROGRESSに変更
-        brainFileManager.updateTaskStatus(task.getId(), TaskStatus.IN_PROGRESS);
+        for (Task task : pendingTasks) {
+            if (processedCount >= MAX_TASKS_PER_CYCLE) {
+                break; // 1サイクルの上限に達した
+            }
 
-        // タスクタイプに応じて実行
-        boolean success = executeTask(task);
+            logger.info("Executing task: " + task.getType() + " (ID: " + task.getId() + ")");
 
-        if (success) {
-            // 成功したらCOMPLETED
-            brainFileManager.updateTaskStatus(task.getId(), TaskStatus.COMPLETED);
-            logger.info("Task completed successfully: " + task.getId());
-        } else {
-            // 失敗したらFAILED
-            brainFileManager.updateTaskStatus(task.getId(), TaskStatus.FAILED);
-            logger.warning("Task failed: " + task.getId());
+            // タスクをIN_PROGRESSに変更
+            brainFileManager.updateTaskStatus(task.getId(), TaskStatus.IN_PROGRESS);
+
+            // タスクタイプに応じて実行
+            boolean success = false;
+            try {
+                success = executeTask(task);
+            } catch (Exception e) {
+                logger.warning("Task execution error: " + e.getMessage());
+                success = false;
+            }
+
+            if (success) {
+                brainFileManager.updateTaskStatus(task.getId(), TaskStatus.COMPLETED);
+                logger.info("Task completed: " + task.getId());
+                successCount++;
+            } else {
+                // 失敗してもFAILEDにして次へ進む
+                brainFileManager.updateTaskStatus(task.getId(), TaskStatus.FAILED);
+                logger.warning("Task failed, moving to next: " + task.getId());
+            }
+
+            processedCount++;
         }
 
-        // 完了・失敗タスクを削除（タスク履歴をクリーンに保つ）
+        // 完了・失敗タスクを削除
         brainFileManager.removeCompletedTasks();
 
-        // 脳ファイルを保存
-        brainFileManager.saveBrainFile();
+        if (processedCount > 0) {
+            brainFileManager.saveBrainFile();
+            logger.info(String.format("Task cycle complete: %d processed, %d succeeded",
+                processedCount, successCount));
+        }
     }
 
     /**

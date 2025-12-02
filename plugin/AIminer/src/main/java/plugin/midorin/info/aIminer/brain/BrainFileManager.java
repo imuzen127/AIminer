@@ -122,6 +122,19 @@ public class BrainFileManager {
     }
 
     /**
+     * すべてのpendingタスクを取得
+     */
+    public List<Task> getAllPendingTasks() {
+        List<Task> pendingTasks = new ArrayList<>();
+        for (Task task : brainData.getTasks()) {
+            if (task.getStatus() == TaskStatus.PENDING) {
+                pendingTasks.add(task);
+            }
+        }
+        return pendingTasks;
+    }
+
+    /**
      * タスクのステータスを更新
      */
     public void updateTaskStatus(int taskId, TaskStatus status) {

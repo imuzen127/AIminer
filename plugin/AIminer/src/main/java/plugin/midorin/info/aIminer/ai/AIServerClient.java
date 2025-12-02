@@ -165,16 +165,24 @@ public class AIServerClient {
         prompt.append("- MINE_WOOD: 木を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
         prompt.append("- MINE_STONE: 石を採取 {\"x\": 0, \"y\": 64, \"z\": 0}\n");
         prompt.append("- MOVE_TO: 指定座標へ移動 {\"x\": 0, \"y\": 64, \"z\": 0} ※アイテムを拾う時も使用\n");
-        prompt.append("【情報取得】\n");
-        prompt.append("- GET_INVENTORY: 自分のインベントリを確認\n");
-        prompt.append("- GET_POSITION: 自分の現在位置を確認\n");
-        prompt.append("- GET_ENTITY_POSITION: エンティティ(プレイヤー等)の位置 {\"entity_name\": \"プレイヤー名\"}\n");
-        prompt.append("- READ_MEMORY: メモリから情報を読み取る {\"key\": \"キー名\"}\n");
-        prompt.append("\n## 重要な情報\n");
-        prompt.append("- チャット履歴は自動で視覚情報に含まれます\n");
-        prompt.append("- 周囲のアイテム（ドロップ品）はMOVE_TOで近づくと自動で拾えます\n");
-        prompt.append("- 周囲のプレイヤー位置も視覚情報に含まれます\n");
-        prompt.append("- 現在位置は視覚情報から直接取得できます（メモリのcurrent_positionより正確）\n");
+        prompt.append("【情報取得は不要】GET_INVENTORY, GET_POSITIONは自動で取得されます。使う必要はありません。\n");
+        prompt.append("\n## 自動で取得される情報（メモリに格納済み）\n");
+        prompt.append("- inventory: 現在のインベントリ内容\n");
+        prompt.append("- nearby_items: 近くに落ちているアイテムの座標と種類\n");
+        prompt.append("- current_position: 現在の座標\n");
+        prompt.append("これらは毎回自動更新されるので、タスクで取得する必要はありません。\n");
+
+        prompt.append("\n## 自律行動の原則（最重要）\n");
+        prompt.append("あなたはプレイヤーの指示を待つ必要はありません。自分で判断して行動してください。\n");
+        prompt.append("以下の優先順位で行動を決定してください：\n");
+        prompt.append("1. 近くにアイテムがあれば拾いに行く（MOVE_TO）\n");
+        prompt.append("2. 近くに木(LOG)があれば掘る（MINE_WOOD）\n");
+        prompt.append("3. 近くに石(STONE)や鉱石(ORE)があれば掘る（MINE_STONE）\n");
+        prompt.append("4. 何もなければランダムに移動して探索（MOVE_TO、現在位置から±5〜10ブロック）\n");
+        prompt.append("5. たまにCHATで状況報告（「木を3本切った」「石を探している」など）\n");
+        prompt.append("\n## 複数タスクの生成\n");
+        prompt.append("1回の応答で複数のタスクを生成できます。new_tasksを配列で指定してください。\n");
+        prompt.append("例: 木を掘りつつ、その後で別の場所を探索する\n");
 
         prompt.append("\n## 応答フォーマット\n");
         prompt.append("必ず以下のJSON形式で応答してください。余計な説明は不要です：\n");
@@ -182,18 +190,17 @@ public class AIServerClient {
         prompt.append("{\n");
         prompt.append("  \"thought\": \"状況分析（短く）\",\n");
         prompt.append("  \"memory_updates\": {},\n");
-        prompt.append("  \"new_task\": {\n");
-        prompt.append("    \"type\": \"CHAT\",\n");
-        prompt.append("    \"parameters\": {\"message\": \"こんにちは！\"},\n");
-        prompt.append("    \"reason\": \"挨拶に応答\"\n");
-        prompt.append("  }\n");
+        prompt.append("  \"new_tasks\": [\n");
+        prompt.append("    {\"type\": \"MINE_WOOD\", \"parameters\": {\"x\": -20, \"y\": 64, \"z\": 5}, \"reason\": \"近くの木を採取\"},\n");
+        prompt.append("    {\"type\": \"MOVE_TO\", \"parameters\": {\"x\": -25, \"y\": 64, \"z\": 10}, \"reason\": \"探索のため移動\"}\n");
+        prompt.append("  ]\n");
         prompt.append("}\n");
         prompt.append("```\n");
-        prompt.append("\n重要な指示:\n");
-        prompt.append("- チャット履歴にプレイヤーの発言があれば、必ずCHATタスクで応答してください\n");
-        prompt.append("- new_taskは原則必須です。WAITは「他のアクションが進行中で待つ必要がある」場合のみ\n");
-        prompt.append("- 何も依頼が無くても暇つぶし行動を提案してください: 近くの木/石を掘る、近づくためにMOVE_TOする、定期的にGET_POSITION/GET_INVENTORYする、状況報告をCHATする\n");
-        prompt.append("- 本当に行動できる情報が無い時のみnew_taskをnullにしてよい\n");
+        prompt.append("※new_task（単数）も引き続きサポートしています\n");
+        prompt.append("\n注意:\n");
+        prompt.append("- プレイヤーからの発言があれば応答しつつ、自分の行動も続けてください\n");
+        prompt.append("- 同じ座標への繰り返し行動は避けてください\n");
+        prompt.append("- 失敗しても別の行動を試してください\n");
 
         return prompt.toString();
     }
@@ -367,39 +374,38 @@ public class AIServerClient {
                 }
             }
 
-            // Add new task
-            if (responseObj.has("new_task") && !responseObj.get("new_task").isJsonNull()) {
+            // Add new tasks (複数タスク対応)
+            boolean tasksAdded = false;
+
+            // new_tasks（配列）をチェック
+            if (responseObj.has("new_tasks") && responseObj.get("new_tasks").isJsonArray()) {
+                JsonArray tasksArray = responseObj.getAsJsonArray("new_tasks");
+                for (int i = 0; i < tasksArray.size(); i++) {
+                    JsonObject taskObj = tasksArray.get(i).getAsJsonObject();
+                    Task newTask = parseTaskFromJson(taskObj, brainData);
+                    if (newTask != null) {
+                        brainData.getTasks().add(newTask);
+                        logger.info(String.format("New task added: %s (ID: %d) - %s",
+                            newTask.getType(), newTask.getId(), newTask.getReason()));
+                        tasksAdded = true;
+                    }
+                }
+            }
+
+            // new_task（単数、後方互換）をチェック
+            if (!tasksAdded && responseObj.has("new_task") && !responseObj.get("new_task").isJsonNull()) {
                 JsonObject taskObj = responseObj.getAsJsonObject("new_task");
-
-                Task newTask = new Task();
-                newTask.setId(generateTaskId(brainData));
-
-                String typeStr = taskObj.get("type").getAsString();
-                try {
-                    newTask.setType(TaskType.valueOf(typeStr));
-                } catch (IllegalArgumentException e) {
-                    logger.warning("Unknown task type: " + typeStr);
-                    return brainData;
+                Task newTask = parseTaskFromJson(taskObj, brainData);
+                if (newTask != null) {
+                    brainData.getTasks().add(newTask);
+                    logger.info(String.format("New task added: %s (ID: %d) - %s",
+                        newTask.getType(), newTask.getId(), newTask.getReason()));
+                    tasksAdded = true;
                 }
+            }
 
-                if (taskObj.has("parameters")) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> params = gson.fromJson(
-                        taskObj.get("parameters"), Map.class);
-                    newTask.setParameters(params);
-                }
-
-                if (taskObj.has("reason")) {
-                    newTask.setReason(taskObj.get("reason").getAsString());
-                }
-
-                newTask.setStatus(TaskStatus.PENDING);
-                brainData.getTasks().add(newTask);
-
-                logger.info(String.format("New task added: %s (ID: %d) - %s",
-                    newTask.getType(), newTask.getId(), newTask.getReason()));
-            } else {
-                // フォールバック: AIがnullを返した場合でも行動する
+            // フォールバック: タスクが追加されなかった場合
+            if (!tasksAdded) {
                 Task fallbackTask = createFallbackTask(brainData);
                 if (fallbackTask != null) {
                     brainData.getTasks().add(fallbackTask);
@@ -414,6 +420,41 @@ public class AIServerClient {
             logger.warning("Failed to parse AI response: " + e.getMessage());
             e.printStackTrace();
             return brainData;
+        }
+    }
+
+    /**
+     * JSONオブジェクトからTaskを生成
+     */
+    private Task parseTaskFromJson(JsonObject taskObj, BrainData brainData) {
+        try {
+            Task newTask = new Task();
+            newTask.setId(generateTaskId(brainData));
+
+            String typeStr = taskObj.get("type").getAsString();
+            try {
+                newTask.setType(TaskType.valueOf(typeStr));
+            } catch (IllegalArgumentException e) {
+                logger.warning("Unknown task type: " + typeStr);
+                return null;
+            }
+
+            if (taskObj.has("parameters")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> params = gson.fromJson(
+                    taskObj.get("parameters"), Map.class);
+                newTask.setParameters(params);
+            }
+
+            if (taskObj.has("reason")) {
+                newTask.setReason(taskObj.get("reason").getAsString());
+            }
+
+            newTask.setStatus(TaskStatus.PENDING);
+            return newTask;
+        } catch (Exception e) {
+            logger.warning("Failed to parse task: " + e.getMessage());
+            return null;
         }
     }
 

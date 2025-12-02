@@ -97,12 +97,10 @@ public class VisionUpdateTask extends BukkitRunnable {
         // コマンド経由で近くのアイテムエンティティを取得
         List<VisibleEntity> nearbyItemsFromCommand = captureNearbyItems();
         if (!nearbyItemsFromCommand.isEmpty()) {
-            // 既存のアイテムリストと結合（コマンド経由のものを優先）
             List<VisibleEntity> existingItems = visionData.getNearbyItems();
             if (existingItems == null) {
                 existingItems = new ArrayList<>();
             }
-            // コマンド経由で取得したアイテムを追加
             existingItems.addAll(nearbyItemsFromCommand);
             visionData.setNearbyItems(existingItems);
         }
@@ -119,6 +117,26 @@ public class VisionUpdateTask extends BukkitRunnable {
         brainFileManager.updateMemory("current_position", botPosition);
         brainFileManager.updateMemory("bot_position_source", "vision_scan");
 
+        // インベントリを自動取得してMemoryに保存
+        captureAndStoreInventory();
+
+        // 近くのアイテム情報もMemoryに保存
+        if (!nearbyItemsFromCommand.isEmpty()) {
+            List<String> itemInfo = new ArrayList<>();
+            for (VisibleEntity item : nearbyItemsFromCommand) {
+                itemInfo.add(String.format("%s x%d at (%.1f, %.1f, %.1f)",
+                    item.getName(), item.getCount(),
+                    item.getWorldPosition().getX(),
+                    item.getWorldPosition().getY(),
+                    item.getWorldPosition().getZ()));
+            }
+            brainFileManager.updateMemory("nearby_items", itemInfo);
+        } else {
+            brainFileManager.updateMemory("nearby_items", new ArrayList<>());
+        }
+
+        brainFileManager.saveBrainFile();
+
         plugin.getLogger().fine(String.format(
             "Vision updated: %d blocks at location (%.1f, %.1f, %.1f)",
             visionData.getVisibleBlocks().size(),
@@ -126,6 +144,25 @@ public class VisionUpdateTask extends BukkitRunnable {
             scanLocation.getY(),
             scanLocation.getZ()
         ));
+    }
+
+    /**
+     * インベントリを自動取得してMemoryに保存
+     */
+    private void captureAndStoreInventory() {
+        List<CommandResultCapture.InventoryItem> items =
+            dataCommandListener.captureInventory(BOT_FEET_TAG);
+
+        List<String> inventory = new ArrayList<>();
+        if (items.isEmpty()) {
+            inventory.add("empty");
+        } else {
+            for (CommandResultCapture.InventoryItem item : items) {
+                inventory.add(item.getItemId() + " x" + item.getCount());
+            }
+        }
+        brainFileManager.updateMemory("inventory", inventory);
+        plugin.getLogger().fine("Inventory auto-captured: " + inventory);
     }
 
     /**

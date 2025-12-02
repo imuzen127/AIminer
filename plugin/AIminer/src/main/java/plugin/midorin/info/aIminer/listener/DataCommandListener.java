@@ -114,12 +114,14 @@ public class DataCommandListener {
 
     /**
      * インベントリ取得コマンドを実行し、結果を待つ
+     * カスタムNBT: data.Inventory にアクセス
      */
     public List<CommandResultCapture.InventoryItem> captureInventory(String botTag) {
         lastInventory = new ArrayList<>();
         capturingInventory = true;
 
-        String command = String.format("data get entity @e[tag=%s,limit=1] Inventory", botTag);
+        // カスタムNBTのdata.Inventoryにアクセス
+        String command = String.format("data get entity @e[tag=%s,limit=1] data.Inventory", botTag);
         org.bukkit.Bukkit.dispatchCommand(
             org.bukkit.Bukkit.getConsoleSender(), command
         );

@@ -57,6 +57,9 @@ public class VisionScanner {
         Material.OAK_LOG, Material.SPRUCE_LOG, Material.BIRCH_LOG,
         Material.JUNGLE_LOG, Material.ACACIA_LOG, Material.DARK_OAK_LOG,
         Material.CHERRY_LOG, Material.MANGROVE_LOG,
+        // 石系（MINE_STONEで掘る対象）
+        Material.STONE, Material.COBBLESTONE, Material.DEEPSLATE,
+        Material.COBBLED_DEEPSLATE, Material.ANDESITE, Material.DIORITE, Material.GRANITE,
         // 鉱石系
         Material.COAL_ORE, Material.IRON_ORE, Material.GOLD_ORE,
         Material.DIAMOND_ORE, Material.EMERALD_ORE, Material.LAPIS_ORE,

@@ -9,8 +9,14 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import plugin.midorin.info.aIminer.bot.BotManager;
 import plugin.midorin.info.aIminer.brain.BrainFileManager;
+import plugin.midorin.info.aIminer.listener.DataCommandListener;
 import plugin.midorin.info.aIminer.model.BlockVisionData;
 import plugin.midorin.info.aIminer.model.Position;
+import plugin.midorin.info.aIminer.model.VisibleEntity;
+import plugin.midorin.info.aIminer.util.CommandResultCapture;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 定期的にボットの視覚情報を更新するタスク
@@ -19,16 +25,21 @@ public class VisionUpdateTask extends BukkitRunnable {
     private final JavaPlugin plugin;
     private final BrainFileManager brainFileManager;
     private final BotManager botManager;
+    private final DataCommandListener dataCommandListener;
     private final VisionScanner visionScanner;
 
     // 視覚更新の間隔（秒）
     private final int updateIntervalSeconds;
     private final int scanRadius;
 
+    // ボットのタグ
+    private static final String BOT_FEET_TAG = "test1";
+
     public VisionUpdateTask(
         JavaPlugin plugin,
         BrainFileManager brainFileManager,
         BotManager botManager,
+        DataCommandListener dataCommandListener,
         int scanRadius,
         int verticalScanRange,
         int updateIntervalSeconds
@@ -36,6 +47,7 @@ public class VisionUpdateTask extends BukkitRunnable {
         this.plugin = plugin;
         this.brainFileManager = brainFileManager;
         this.botManager = botManager;
+        this.dataCommandListener = dataCommandListener;
         this.scanRadius = scanRadius;
         this.updateIntervalSeconds = updateIntervalSeconds;
         this.visionScanner = new VisionScanner(plugin, verticalScanRange);
@@ -82,6 +94,19 @@ public class VisionUpdateTask extends BukkitRunnable {
         // 視覚情報をスキャン
         BlockVisionData visionData = visionScanner.scanSurroundings(scanLocation, scanRadius);
 
+        // コマンド経由で近くのアイテムエンティティを取得
+        List<VisibleEntity> nearbyItemsFromCommand = captureNearbyItems();
+        if (!nearbyItemsFromCommand.isEmpty()) {
+            // 既存のアイテムリストと結合（コマンド経由のものを優先）
+            List<VisibleEntity> existingItems = visionData.getNearbyItems();
+            if (existingItems == null) {
+                existingItems = new ArrayList<>();
+            }
+            // コマンド経由で取得したアイテムを追加
+            existingItems.addAll(nearbyItemsFromCommand);
+            visionData.setNearbyItems(existingItems);
+        }
+
         // Brain Fileに保存
         brainFileManager.updateBlockVision(visionData);
 
@@ -101,6 +126,31 @@ public class VisionUpdateTask extends BukkitRunnable {
             scanLocation.getY(),
             scanLocation.getZ()
         ));
+    }
+
+    /**
+     * コマンド経由で近くのアイテムエンティティを取得
+     */
+    private List<VisibleEntity> captureNearbyItems() {
+        List<VisibleEntity> items = new ArrayList<>();
+
+        // @n[type=item] を使用して最も近いアイテムを取得
+        CommandResultCapture.NearbyItem nearbyItem =
+            dataCommandListener.captureNearbyItem(BOT_FEET_TAG);
+
+        if (nearbyItem != null) {
+            VisibleEntity entity = new VisibleEntity(
+                new Position(nearbyItem.getX(), nearbyItem.getY(), nearbyItem.getZ()),
+                "ITEM",
+                nearbyItem.getItemId().toUpperCase(),
+                nearbyItem.getCount(),
+                0.0 // 距離は後で計算可能
+            );
+            items.add(entity);
+            plugin.getLogger().info("Nearby item detected via command: " + nearbyItem);
+        }
+
+        return items;
     }
 
     /**

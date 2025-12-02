@@ -14,10 +14,13 @@ import plugin.midorin.info.aIminer.model.Position;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import plugin.midorin.info.aIminer.listener.DataCommandListener;
+import plugin.midorin.info.aIminer.util.CommandResultCapture;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * タスクを実行するクラス
@@ -27,6 +30,7 @@ public class TaskExecutor {
     private final JavaPlugin plugin;
     private final BrainFileManager brainFileManager;
     private final BotManager botManager;
+    private final DataCommandListener dataCommandListener;
     private final Logger logger;
     private int taskId = -1;
 
@@ -40,10 +44,11 @@ public class TaskExecutor {
     private static final String WOOD_MARKER_TAG = "aim1o";
     private static final String STONE_MARKER_TAG = "aim1s";
 
-    public TaskExecutor(JavaPlugin plugin, BrainFileManager brainFileManager, BotManager botManager) {
+    public TaskExecutor(JavaPlugin plugin, BrainFileManager brainFileManager, BotManager botManager, DataCommandListener dataCommandListener) {
         this.plugin = plugin;
         this.brainFileManager = brainFileManager;
         this.botManager = botManager;
+        this.dataCommandListener = dataCommandListener;
         this.logger = plugin.getLogger();
     }
 
@@ -266,55 +271,26 @@ public class TaskExecutor {
 
     /**
      * インベントリ取得タスク
-     * ゾンビピグリンのHandItemsを確認し、アイテム情報を取得
+     * /data get entity コマンドを使用してインベントリを取得
      */
     private boolean executeGetInventory(Task task) {
-        LivingEntity botEntity = findBotEntity();
-        if (botEntity == null) {
-            logger.warning("Bot entity not found for inventory check");
-            return false;
-        }
+        // コマンド経由でインベントリを取得
+        List<CommandResultCapture.InventoryItem> items =
+            dataCommandListener.captureInventory(BOT_FEET_TAG);
 
-        List<String> inventory = new ArrayList<>();
-
-        // 装備品を確認
-        if (botEntity.getEquipment() != null) {
-            org.bukkit.inventory.ItemStack mainHand = botEntity.getEquipment().getItemInMainHand();
-            org.bukkit.inventory.ItemStack offHand = botEntity.getEquipment().getItemInOffHand();
-
-            if (mainHand != null && mainHand.getType() != org.bukkit.Material.AIR) {
-                inventory.add(String.format("mainhand: %s x%d",
-                    mainHand.getType().toString(), mainHand.getAmount()));
-            }
-            if (offHand != null && offHand.getType() != org.bukkit.Material.AIR) {
-                inventory.add(String.format("offhand: %s x%d",
-                    offHand.getType().toString(), offHand.getAmount()));
-            }
-        }
-
-        // PiglinZombie特有：インベントリがある場合は追加で取得を試みる
-        if (botEntity instanceof org.bukkit.entity.PigZombie) {
-            org.bukkit.entity.PigZombie piglin = (org.bukkit.entity.PigZombie) botEntity;
-            org.bukkit.inventory.EntityEquipment equip = piglin.getEquipment();
-            if (equip != null) {
-                // ArmorContentsも確認
-                for (org.bukkit.inventory.ItemStack armor : equip.getArmorContents()) {
-                    if (armor != null && armor.getType() != org.bukkit.Material.AIR) {
-                        inventory.add(String.format("armor: %s x%d",
-                            armor.getType().toString(), armor.getAmount()));
-                    }
-                }
-            }
-        }
-
-        // インベントリが空の場合
-        if (inventory.isEmpty()) {
+        List<String> inventory;
+        if (items.isEmpty()) {
+            inventory = new ArrayList<>();
             inventory.add("empty");
+        } else {
+            inventory = items.stream()
+                .map(item -> item.getItemId() + " x" + item.getCount())
+                .collect(Collectors.toList());
         }
 
         brainFileManager.updateMemory("inventory_state", inventory);
         brainFileManager.saveBrainFile();
-        logger.info("Inventory snapshot stored (equipment summary size: " + inventory.size() + ")");
+        logger.info("Inventory captured via command: " + inventory);
         return true;
     }
 

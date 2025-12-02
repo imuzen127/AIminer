@@ -8,6 +8,7 @@ import plugin.midorin.info.aIminer.brain.BrainFileManager;
 import plugin.midorin.info.aIminer.command.BotCommand;
 import plugin.midorin.info.aIminer.executor.TaskExecutor;
 import plugin.midorin.info.aIminer.listener.ChatListener;
+import plugin.midorin.info.aIminer.listener.DataCommandListener;
 import plugin.midorin.info.aIminer.listener.PlayerActivityListener;
 import plugin.midorin.info.aIminer.vision.VisionUpdateTask;
 
@@ -18,6 +19,7 @@ public final class AIminer extends JavaPlugin {
     private TaskExecutor taskExecutor;
     private VisionUpdateTask visionUpdateTask;
     private AIProcessingTask aiProcessingTask;
+    private DataCommandListener dataCommandListener;
 
     @Override
     public void onEnable() {
@@ -34,6 +36,10 @@ public final class AIminer extends JavaPlugin {
         // ボットマネージャーの初期化
         botManager = new BotManager(this);
 
+        // データコマンドリスナーの初期化と登録
+        dataCommandListener = new DataCommandListener(this);
+        dataCommandListener.register();
+
         // 設定値の読み込み
         int visionRadius = getConfig().getInt("vision.scan-radius", 10);
         int visionVerticalRange = getConfig().getInt("vision.vertical-range", 5);
@@ -42,7 +48,7 @@ public final class AIminer extends JavaPlugin {
         int aiTimeoutSeconds = getConfig().getInt("ai-server.timeout-seconds", 120);
 
         // タスク実行システムの初期化と起動
-        taskExecutor = new TaskExecutor(this, brainFileManager, botManager);
+        taskExecutor = new TaskExecutor(this, brainFileManager, botManager, dataCommandListener);
         taskExecutor.startTaskLoop();
         getLogger().info("Task executor started.");
 
@@ -51,6 +57,7 @@ public final class AIminer extends JavaPlugin {
             this,
             brainFileManager,
             botManager,
+            dataCommandListener,
             visionRadius,
             visionVerticalRange,
             visionIntervalSeconds
@@ -115,6 +122,11 @@ public final class AIminer extends JavaPlugin {
         // 視覚更新タスクを停止
         if (visionUpdateTask != null) {
             visionUpdateTask.stopVisionLoop();
+        }
+
+        // データコマンドリスナーを解除
+        if (dataCommandListener != null) {
+            dataCommandListener.unregister();
         }
 
         // 脳ファイルを保存

@@ -1,0 +1,20 @@
+v1.21: Add command-based inventory and item detection
+
+Major changes:
+- Add DataCommandListener to capture /data get command results
+- Add CommandResultCapture utility for parsing NBT data from logs
+- Update TaskExecutor to use data command for inventory retrieval
+- Update VisionUpdateTask to detect nearby items via command
+
+Commands used:
+- /data get entity @e[tag=test1,limit=1] Inventory (inventory)
+- /execute as @e[tag=test1,limit=1] run data get entity @n[type=item] Pos (item position)
+- /execute as @e[tag=test1,limit=1] run data get entity @n[type=item] Item (item type)
+
+This fixes issues where:
+- Bot could not recognize items in its inventory
+- Dropped items near the bot were not detected
+
+Generated with Claude Code
+
+Co-Authored-By: Claude <noreply@anthropic.com>
